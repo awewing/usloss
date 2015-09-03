@@ -1,0 +1,5 @@
+TEST:Getpid passed. 3 3
+TEST:Getpid passed. 4 4
+TEST:Getpid passed. 5 5
+TEST:exit getpid test.
+All processes completed.
