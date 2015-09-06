@@ -13,6 +13,7 @@
 #include <stdio.h>
 
 #include "kernel.h"
+#include "usloss.h"
 
 /* ------------------------- Prototypes ----------------------------------- */
 int sentinel (char *);
@@ -23,6 +24,7 @@ static void enableInterrupts();
 void disableInterrupts();
 static void checkDeadlock();
 void clockHandler(int dev, void *args);
+void inKernelMode();
 
 /* -------------------------- Globals ------------------------------------- */
 
@@ -145,15 +147,18 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
         USLOSS_Console("fork1(): creating process %s\n", name);
 
     /* test if in kernel mode; halt if in user mode */
-    // TODO how
+    inKernelMode();
 
     /* Return if stack size is too small */
-    // TODO how to tell if stack size too small
+    // TODO: return what?
+    if (stacksize < USLOSS_MIN_STACK) {
+      return -1;
+    }
 
     /* find an empty slot in the process table */
     int i;
     for (i = 0; i < MAXPROC; i++) {
-        if (ProcTable[i].status = QUIT) {
+        if (ProcTable[i].status == QUIT) {
             procSlot = i;
             break;
         }
@@ -167,8 +172,8 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
         USLOSS_Halt(1);
     }
     strcpy(ProcTable[procSlot].name, name);
-//    ProcTable[procSlot].start_func = f; 
-//    TODO change f to some function that uses the int (*procCode)(char *) from the fork1 parameters
+    //    ProcTable[procSlot].start_func = f; 
+    //    TODO change f to some function that uses the int (*procCode)(char *) from the fork1 parameters
     if ( arg == NULL )
         ProcTable[procSlot].startArg[0] = '\0';
     else if ( strlen(arg) >= (MAXARG - 1) ) {
@@ -180,7 +185,7 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
 
     ProcTable[pid] = nextPid;
     ProcTable[procSlot].priority = priority;
-    ProcTable[procSlot]status = READY;
+    ProcTable[procSlot].status = READY;
 
     // inc nextPid
     nextPid++;
@@ -200,6 +205,24 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     /* More stuff to do here... */
 
 } /* fork1 */
+
+/* ------------------------------------------------------------------------
+   Name - inKernelMoce
+   Purpose - Check if the current mode is Kernel. If not call USLOSS_Halt
+             If the 0th bit of PSR is 1, we are in kernel mode. If not,
+             call USLOSS_Halt
+   Parameters - None
+   Returns - void, but if USLOSS_Halt is called it will not return at all.
+   Side Effects - Could end program if not in kernel mode, else, does nothing
+   ------------------------------------------------------------------------ */
+void inKernelMode()
+{
+  // int mode = USLOSS_PSRGet();
+
+  if (!USLOSS_PSR_CURRENT_MODE)
+    USLOSS_Halt(1);
+
+} /* inKernelMode */
 
 /* ------------------------------------------------------------------------
    Name - launch
