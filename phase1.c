@@ -20,8 +20,9 @@ extern int start1 (char *);
 void dispatcher(void);
 void launch();
 static void enableInterrupts();
+void disableInterrupts();
 static void checkDeadlock();
-
+void clockHandler(int dev, void *args);
 
 /* -------------------------- Globals ------------------------------------- */
 
@@ -39,7 +40,6 @@ procPtr Current;
 
 /* the next pid to be assigned */
 unsigned int nextPid = SENTINELPID;
-
 
 /* -------------------------- Functions ----------------------------------- */
 /* ------------------------------------------------------------------------
@@ -59,12 +59,28 @@ void startup()
     if (DEBUG && debugflag)
         USLOSS_Console("startup(): initializing process table, ProcTable[]\n");
 
+    for (i = 0; i < MAXPROC; i++) {
+        // fill in ProcTable entries for the sentinel
+        ProcTable[i].nextProcPtr = NULL;
+        ProcTable[i].childProcPtr = NULL;
+        ProcTable[i].nextSiblingPtr = NULL;
+        ProcTable[i].name[0] = '\0';
+        ProcTable[i].startArg[0] = '\0';
+        ProcTable[i].pid = -1;
+        ProcTable[i].priority = MINPRIORITY;
+        ProcTable[i].start_func = NULL; 
+        ProcTable[i].stack = NULL;
+        ProcTable[i].stackSize = 0;
+        ProcTable[i].status = QUIT;
+    }
+
     /* Initialize the Ready list, etc. */
     if (DEBUG && debugflag)
         USLOSS_Console("startup(): initializing the Ready list\n");
     ReadyList = NULL;
 
     /* Initialize the clock interrupt handler */
+    USLOSS_IntVec[USLOSS_CLOCK_INT] = clockHandler(USLOSS_CLOCK_INT, 0);
 
     /* startup a sentinel process */
     if (DEBUG && debugflag)
@@ -78,7 +94,7 @@ void startup()
         }
         USLOSS_Halt(1);
     }
-  
+
     /* start the test process */
     if (DEBUG && debugflag)
         USLOSS_Console("startup(): calling fork1() for start1\n");
@@ -129,10 +145,21 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
         USLOSS_Console("fork1(): creating process %s\n", name);
 
     /* test if in kernel mode; halt if in user mode */
+    // TODO how
 
     /* Return if stack size is too small */
+    // TODO how to tell if stack size too small
 
     /* find an empty slot in the process table */
+    int i;
+    for (i = 0; i < MAXPROC; i++) {
+        if (ProcTable[i].status = QUIT) {
+            procSlot = i;
+            break;
+        }
+    }
+
+    // do something bad if proc slot still equals -1, indicates table full
 
     /* fill-in entry in process table */
     if ( strlen(name) >= (MAXNAME - 1) ) {
@@ -140,7 +167,8 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
         USLOSS_Halt(1);
     }
     strcpy(ProcTable[procSlot].name, name);
-    ProcTable[procSlot].start_func = f;
+//    ProcTable[procSlot].start_func = f; 
+//    TODO change f to some function that uses the int (*procCode)(char *) from the fork1 parameters
     if ( arg == NULL )
         ProcTable[procSlot].startArg[0] = '\0';
     else if ( strlen(arg) >= (MAXARG - 1) ) {
@@ -150,7 +178,15 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     else
         strcpy(ProcTable[procSlot].startArg, arg);
 
-    /* Initialize context for this process, but use launch function pointer for
+    ProcTable[pid] = nextPid;
+    ProcTable[procSlot].priority = priority;
+    ProcTable[procSlot]status = READY;
+
+    // inc nextPid
+    nextPid++;
+
+    /*
+     * Initialize context for this process, but use launch function pointer for
      * the initial value of the process's program counter (PC)
      */
     USLOSS_ContextInit(&(ProcTable[procSlot].state), USLOSS_PsrGet(),
@@ -272,6 +308,13 @@ static void checkDeadlock()
 {
 } /* checkDeadlock */
 
+/*
+ * Enables the interrupts TODO write this
+ */
+static void enableInterrupts(int dev, void *args)
+{
+
+}
 
 /*
  * Disables the interrupts.
@@ -288,3 +331,13 @@ void disableInterrupts()
         /* We ARE in kernel mode */
         USLOSS_PsrSet( USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_INT );
 } /* disableInterrupts */
+
+/*
+ * Clock handler
+ */
+static void clockHandler(int dev, void *arg) {
+    if (DEBUG && debugflag)
+        USLOSS_Console("clock handler\n");
+
+    // compare times
+}

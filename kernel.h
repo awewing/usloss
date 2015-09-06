@@ -18,6 +18,7 @@ struct procStruct {
    char           *stack;
    unsigned int    stackSize;
    int             status;        /* READY, BLOCKED, QUIT, etc. */
+   // TODO time it was created
    /* other fields as needed... */
 };
 
@@ -40,4 +41,6 @@ union psr_values {
 #define MAXPRIORITY 1
 #define SENTINELPID 1
 #define SENTINELPRIORITY (MINPRIORITY + 1)
-
+#define READY 0
+#define BLOCKED 1
+#define QUIT 2
