@@ -43,5 +43,8 @@ union psr_values {
 #define SENTINELPID 1
 #define SENTINELPRIORITY (MINPRIORITY + 1)
 #define READY 0
-#define BLOCKED 1
-#define QUIT 2
+#define QUIT 1
+#define JOINBLOCKED 2
+/* homer suggested that we add multiple types of blocks instead of the generic blocked
+   for now i added joinblocked, we can add more as we go
+ */

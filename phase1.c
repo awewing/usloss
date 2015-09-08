@@ -82,7 +82,7 @@ void startup()
     ReadyList = NULL;
 
     /* Initialize the clock interrupt handler */
-    USLOSS_IntVec[USLOSS_CLOCK_INT] = clockHandler(USLOSS_CLOCK_INT, 0);
+    USLOSS_IntVec[USLOSS_CLOCK_INT] = clockHandler;
 
     /* startup a sentinel process */
     if (DEBUG && debugflag)
@@ -313,9 +313,11 @@ int join(int *code)
 void quit(int code)
 {
     // check to make sure current haas a child
-    if (Current->childProcPtr == NULL) {
+    if (Current->childProcPtr != NULL) {
         USLOSS_Halt(1);
     }
+
+    Current->status = QUIT;
 
     p1_quit(Current->pid);
 } /* quit */
