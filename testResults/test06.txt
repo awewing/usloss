@@ -1,0 +1,6 @@
+START1: calling fork1 for XXp1
+START1: calling zap
+XXp1: started
+XXp1: calling quit
+START1: zap_result = 0
+All processes completed.
