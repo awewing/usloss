@@ -168,8 +168,7 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     if (procCode == NULL)
       return -1;
 
-    // TODO: Is sentinel exempt from this check?
-    if (priority > 5)
+    if (priority > 5 && strcmp("sentinel", name) != 0)
       return -1;
 
     if (procSlot == -1)
@@ -193,7 +192,6 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
 
     ProcTable[procSlot].pid = nextPid;
     ProcTable[procSlot].priority = priority;
-    //    TODO change f to some function that uses the int (*procCode)(char *) from the fork1 parameters
     ProcTable[procSlot].start_func = procCode;
     ProcTable[procSlot].stack = malloc(stacksize * sizeof(char));
     ProcTable[procSlot].stackSize = stacksize;
