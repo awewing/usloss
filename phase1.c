@@ -61,8 +61,8 @@ void startup()
     if (DEBUG && debugflag)
         USLOSS_Console("startup(): initializing process table, ProcTable[]\n");
 
+    // initialize all procs in proc table
     for (i = 0; i < MAXPROC; i++) {
-        // fill in ProcTable entries for the sentinel
         ProcTable[i].nextProcPtr = NULL;
         ProcTable[i].childProcPtr = NULL;
         ProcTable[i].nextSiblingPtr = NULL;
@@ -79,6 +79,7 @@ void startup()
     /* Initialize the Ready list, etc. */
     if (DEBUG && debugflag)
         USLOSS_Console("startup(): initializing the Ready list\n");
+    
     ReadyList = NULL;
 
     /* Initialize the clock interrupt handler */
@@ -100,7 +101,9 @@ void startup()
     /* start the test process */
     if (DEBUG && debugflag)
         USLOSS_Console("startup(): calling fork1() for start1\n");
+   
     result = fork1("start1", start1, NULL, 2 * USLOSS_MIN_STACK, 1);
+   
     if (result < 0) {
         USLOSS_Console("startup(): fork1 for start1 returned an error, ");
         USLOSS_Console("halting...\n");
@@ -159,28 +162,54 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     }
 
     /* Return if stack size is too small, or if name or procCode is null*/
-    if (stacksize < USLOSS_MIN_STACK)
-      return -2;
+    if (stacksize < USLOSS_MIN_STACK) {
+        if (DEBUG && debugflag)
+            USLOSS_Console("Stack size too small\n");
 
-    if (name == NULL)
-      return -1;
+        return -2;
+    }
 
-    if (procCode == NULL)
-      return -1;
+    if (name == NULL) {
+        if (DEBUG && debugflag)
+            USLOSS_Console("Name not set\n");
 
-    if (priority > 5 && strcmp("sentinel", name) != 0)
-      return -1;
+        return -1;
+    }
 
-    if (procSlot == -1)
-      return -1;
+    if (procCode == NULL) {
+        if (DEBUG && debugflag)
+            USLOSS_Console("Proc code not set\n");
+
+        return -1;
+    }
+
+    if (priority > MINPRIORITY && strcmp("sentinel", name) != 0) {
+        if (DEBUG && debugflag)
+            USLOSS_Console("Priority too small\n");
+
+        return -1;
+    }
+
+    if (procSlot == -1) {
+        if (DEBUG && debugflag)
+            USLOSS_Console("No space in proc table\n");
+
+        return -1;
+    }
 
     /* fill-in entry in process table */
     if ( strlen(name) >= (MAXNAME - 1) ) {
         USLOSS_Console("fork1(): Process name is too long.  Halting...\n");
         USLOSS_Halt(1);
     }
+
+    // set the proc's name
     strcpy(ProcTable[procSlot].name, name);
-    //    ProcTable[procSlot].start_func = f; 
+    
+    // set the proc's start function
+    ProcTable[procSlot].start_func = procCode;
+
+    // set the proc's args
     if ( arg == NULL )
         ProcTable[procSlot].startArg[0] = '\0';
     else if ( strlen(arg) >= (MAXARG - 1) ) {
@@ -190,9 +219,9 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     else
         strcpy(ProcTable[procSlot].startArg, arg);
 
+    // set the rest of the proc's info
     ProcTable[procSlot].pid = nextPid;
     ProcTable[procSlot].priority = priority;
-    ProcTable[procSlot].start_func = procCode;
     ProcTable[procSlot].stack = malloc(stacksize * sizeof(char));
     ProcTable[procSlot].stackSize = stacksize;
     ProcTable[procSlot].status = READY;
