@@ -23,7 +23,7 @@ void launch();
 static void enableInterrupts();
 void disableInterrupts();
 static void checkDeadlock();
-void clockHandler(int dev, void *args);
+void static clockHandler(int dev, void *args);
 void inKernelMode();
 
 /* -------------------------- Globals ------------------------------------- */
@@ -277,12 +277,12 @@ void launch()
 int join(int *code)
 {
   // Make sure current process has child
-  if (Current.childProcPtr == NULL) {
+  if (Current->childProcPtr == NULL) {
     return -2;
   }
 
   // Iteratively search for a child that has quit and return its pid
-  procPtr currProc = Current.childProcPtr
+  procPtr currProc = Current->childProcPtr;
   // TODO: check first child and then check that child's siblings
 
   while (currProc != NULL) {
@@ -313,7 +313,7 @@ int join(int *code)
 void quit(int code)
 {
     // check to make sure current haas a child
-    if (Current.childProcPtr == NULL) {
+    if (Current->childProcPtr == NULL) {
         USLOSS_Halt(1);
     }
 
