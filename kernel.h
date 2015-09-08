@@ -19,6 +19,7 @@ struct procStruct {
    unsigned int    stackSize;
    int             status;        /* READY, BLOCKED, QUIT, etc. */
    // TODO time it was created
+
    /* other fields as needed... */
 };
 
