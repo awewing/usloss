@@ -293,8 +293,7 @@ int join(int *code)
   }
 
   // No children have quit, remove parent from ready list and block
-  // TODO:
-
+  // 
   
 
 
@@ -312,6 +311,11 @@ int join(int *code)
    ------------------------------------------------------------------------ */
 void quit(int code)
 {
+    // check to make sure current haas a child
+    if (Current.childProcPtr == NULL) {
+        USLOSS_Halt(1);
+    }
+
     p1_quit(Current->pid);
 } /* quit */
 
