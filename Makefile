@@ -15,7 +15,7 @@ CFLAGS = -Wall -g -I${INCLUDE}
 
 UNAME := $(shell uname -s)
 
-ifeq ($(UNAME), Darewin)
+ifeq ($(UNAME), Darwin)
 	CFLAGS += -D_XOPEN_SOURCE      # use for Mac, NOT for Linux!!
 endif
 

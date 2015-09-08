@@ -4,7 +4,7 @@
    University of Arizona
    Computer Science 452
    Fall 2015
-    BACKUP
+
    ------------------------------------------------------------------------ */
 
 #include "phase1.h"
