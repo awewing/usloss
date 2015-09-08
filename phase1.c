@@ -4,7 +4,7 @@
    University of Arizona
    Computer Science 452
    Fall 2015
-
+    BACKUP
    ------------------------------------------------------------------------ */
 
 #include "phase1.h"
@@ -276,17 +276,14 @@ void launch()
    ------------------------------------------------------------------------ */
 int join(int *code)
 {
-  // TODO: get current process with getpid() from proctable (may be incorrect)
-  int pidIndex = getpid() % 50;
-
   // Make sure current process has child
-  if (ProcTable[pidIndex].childProcPtr == NULL) {
+  if (Current.childProcPtr == NULL) {
     return -2;
   }
 
   // Iteratively search for a child that has quit and return its pid
-  // TODO: Do we remove it from the linked list of children/siblings
-  procPtr currProc = ProcTable[pidIndex].childProcPtr;
+  procPtr currProc = Current.childProcPtr
+
   while (currProc != NULL) {
     if (currProc->status == QUIT) {
       return currProc->pid;
@@ -297,6 +294,7 @@ int join(int *code)
 
   // No children have quit, remove parent from ready list and block
   // TODO:
+
   
 
 
