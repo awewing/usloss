@@ -149,12 +149,6 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     /* test if in kernel mode; halt if in user mode */
     inKernelMode();
 
-    /* Return if stack size is too small */
-    // TODO: return what?
-    if (stacksize < USLOSS_MIN_STACK) {
-      return -1;
-    }
-
     /* find an empty slot in the process table */
     int i;
     for (i = 0; i < MAXPROC; i++) {
@@ -164,7 +158,22 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
         }
     }
 
-    // do something bad if proc slot still equals -1, indicates table full
+    /* Return if stack size is too small, or if name or procCode is null*/
+    if (stacksize < USLOSS_MIN_STACK)
+      return -2;
+
+    if (name == NULL)
+      return -1;
+
+    if (procCode == NULL)
+      return -1;
+
+    // TODO: Is sentinel exempt from this check?
+    if (priority > 5)
+      return -1;
+
+    if (procSlot == -1)
+      return -1;
 
     /* fill-in entry in process table */
     if ( strlen(name) >= (MAXNAME - 1) ) {
@@ -173,7 +182,6 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     }
     strcpy(ProcTable[procSlot].name, name);
     //    ProcTable[procSlot].start_func = f; 
-    //    TODO change f to some function that uses the int (*procCode)(char *) from the fork1 parameters
     if ( arg == NULL )
         ProcTable[procSlot].startArg[0] = '\0';
     else if ( strlen(arg) >= (MAXARG - 1) ) {
@@ -183,8 +191,12 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     else
         strcpy(ProcTable[procSlot].startArg, arg);
 
-    ProcTable[pid] = nextPid;
+    ProcTable[procSlot].pid = nextPid;
     ProcTable[procSlot].priority = priority;
+    //    TODO change f to some function that uses the int (*procCode)(char *) from the fork1 parameters
+    ProcTable[procSlot].start_func = procCode;
+    ProcTable[procSlot].stack = malloc(stacksize * sizeof(char));
+    ProcTable[procSlot].stackSize = stacksize;
     ProcTable[procSlot].status = READY;
 
     // inc nextPid
@@ -204,10 +216,11 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
 
     /* More stuff to do here... */
 
+  return ProcTable[procSlot].pid;
 } /* fork1 */
 
 /* ------------------------------------------------------------------------
-   Name - inKernelMoce
+   Name - inKernelMode
    Purpose - Check if the current mode is Kernel. If not call USLOSS_Halt
              If the 0th bit of PSR is 1, we are in kernel mode. If not,
              call USLOSS_Halt
@@ -217,8 +230,6 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
    ------------------------------------------------------------------------ */
 void inKernelMode()
 {
-  // int mode = USLOSS_PSRGet();
-
   if (!USLOSS_PSR_CURRENT_MODE)
     USLOSS_Halt(1);
 
@@ -267,6 +278,30 @@ void launch()
    ------------------------------------------------------------------------ */
 int join(int *code)
 {
+  // TODO: get current process with getpid() from proctable (may be incorrect)
+  int pidIndex = getpid() % 50;
+
+  // Make sure current process has child
+  if (ProcTable[pidIndex].childProcPtr == NULL) {
+    return -2;
+  }
+
+  // Iteratively search for a child that has quit and return its pid
+  // TODO: Do we remove it from the linked list of children/siblings
+  procPtr currProc = ProcTable[pidIndex].childProcPtr;
+  while (currProc != NULL) {
+    if (currProc->status == QUIT) {
+      return currProc->pid;
+    } else {
+      currProc = currProc->childProcPtr;
+    }
+  }
+
+  // No children have quit, remove parent from ready list and block
+  // TODO:
+  
+
+
 } /* join */
 
 
