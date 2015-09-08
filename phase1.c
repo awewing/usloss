@@ -4,7 +4,7 @@
    University of Arizona
    Computer Science 452
    Fall 2015
-
+    BACKUP
    ------------------------------------------------------------------------ */
 
 #include "phase1.h"
@@ -193,7 +193,6 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
 
     ProcTable[procSlot].pid = nextPid;
     ProcTable[procSlot].priority = priority;
-    //    TODO change f to some function that uses the int (*procCode)(char *) from the fork1 parameters
     ProcTable[procSlot].start_func = procCode;
     ProcTable[procSlot].stack = malloc(stacksize * sizeof(char));
     ProcTable[procSlot].stackSize = stacksize;
@@ -278,17 +277,14 @@ void launch()
    ------------------------------------------------------------------------ */
 int join(int *code)
 {
-  // TODO: get current process with getpid() from proctable (may be incorrect)
-  int pidIndex = getpid() % 50;
-
   // Make sure current process has child
-  if (ProcTable[pidIndex].childProcPtr == NULL) {
+  if (Current.childProcPtr == NULL) {
     return -2;
   }
 
   // Iteratively search for a child that has quit and return its pid
-  // TODO: Do we remove it from the linked list of children/siblings
-  procPtr currProc = ProcTable[pidIndex].childProcPtr;
+  procPtr currProc = Current.childProcPtr
+
   while (currProc != NULL) {
     if (currProc->status == QUIT) {
       return currProc->pid;
@@ -299,6 +295,7 @@ int join(int *code)
 
   // No children have quit, remove parent from ready list and block
   // TODO:
+
   
 
 
