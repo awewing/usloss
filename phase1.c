@@ -69,6 +69,7 @@ void startup()
         ProcTable[i].name[0] = '\0';
         ProcTable[i].startArg[0] = '\0';
         ProcTable[i].pid = -1;
+        ProcTable[i].ppid = -1;
         ProcTable[i].priority = MINPRIORITY;
         ProcTable[i].start_func = NULL; 
         ProcTable[i].stack = NULL;
@@ -225,6 +226,7 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     ProcTable[procSlot].stack = malloc(stacksize * sizeof(char));
     ProcTable[procSlot].stackSize = stacksize;
     ProcTable[procSlot].status = READY;
+    ProcTable[procSlot].startTime = USLOSS_Clock();
 
     // inc nextPid
     nextPid++;
@@ -240,6 +242,26 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
 
     /* for future phase(s) */
     p1_fork(ProcTable[procSlot].pid);
+
+    // sentinel exempt
+    if (strcmp("sentinel", name) != 0) {
+        // set current to your parent this doesn't work, not sure why
+        ProcTable[procSlot].ppid = Current->pid;
+
+        // check if Current already has a child, if not set this fork as the child
+        if (Current->childProcPtr == NULL) {
+            Current->childProcPtr = &ProcTable[procSlot];
+        }
+        // if current already has children, set this child as a sibling of Current's
+        // last child
+        else {
+            // start at the first child and look until a siblingptr is null
+            procPtr child = Current->childProcPtr;
+            for (child; child->nextSiblingPtr != NULL; child = child->nextSiblingPtr) {}
+
+            child->nextSiblingPtr = &ProcTable[procSlot];
+        }
+    }
 
     /* More stuff to do here... */
 
@@ -305,25 +327,25 @@ void launch()
    ------------------------------------------------------------------------ */
 int join(int *code)
 {
-  // Make sure current process has child
-  if (Current->childProcPtr == NULL) {
-    return -2;
-  }
-
-  // Iteratively search for a child that has quit and return its pid
-  procPtr currProc = Current->childProcPtr;
-  // TODO: check first child and then check that child's siblings
-
-  while (currProc != NULL) {
-    if (currProc->status == QUIT) {
-      return currProc->pid;
-    } else {
-      currProc = currProc->childProcPtr;
+    // Make sure current process has child
+    if (Current->childProcPtr == NULL) {
+        return -2;
     }
-  }
 
-  // No children have quit, remove parent from ready list and block
-  // 
+    // Iteratively search for a child that has quit and return its pid
+    procPtr currProc = Current->childProcPtr;
+    // TODO: check first child and then check that child's siblings
+
+    while (currProc != NULL) {
+        if (currProc->status == QUIT) {
+            return currProc->pid;
+        } else {
+            currProc = currProc->nextSiblingPtr;
+        }
+    }
+
+    // No children have quit, remove parent from ready list and block
+    // 
   
 
 
@@ -341,7 +363,7 @@ int join(int *code)
    ------------------------------------------------------------------------ */
 void quit(int code)
 {
-    // check to make sure current haas a child
+    // check to make sure current doesn't have children
     if (Current->childProcPtr != NULL) {
         USLOSS_Halt(1);
     }

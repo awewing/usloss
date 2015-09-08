@@ -13,12 +13,13 @@ struct procStruct {
    char            startArg[MAXARG];  /* args passed to process */
    USLOSS_Context  state;             /* current context for process */
    short           pid;               /* process id */
+   short           ppid;              /* parent process id */
    int             priority;
-   int (* start_func) (char *);   /* function where process begins -- launch */
+   int (* start_func) (char *);       /* function where process begins -- launch */
    char           *stack;
    unsigned int    stackSize;
-   int             status;        /* READY, BLOCKED, QUIT, etc. */
-   // TODO time it was created
+   int             status;            /* READY, BLOCKED, QUIT, etc. */
+   int             startTime;
 
    /* other fields as needed... */
 };
