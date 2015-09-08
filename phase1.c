@@ -283,6 +283,7 @@ int join(int *code)
 
   // Iteratively search for a child that has quit and return its pid
   procPtr currProc = Current.childProcPtr
+  // TODO: check first child and then check that child's siblings
 
   while (currProc != NULL) {
     if (currProc->status == QUIT) {
