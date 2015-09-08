@@ -25,22 +25,6 @@ int XXp1(char *arg)
 {
     int i;
 
-    pid1 = fork1("XXp2", XXp2, "XXp2", USLOSS_MIN_STACK, 2);
-    pid1 = fork1("XXp2", XXp2, "XXp2", USLOSS_MIN_STACK, 2);
-    pid1 = fork1("XXp2", XXp2, "XXp2", USLOSS_MIN_STACK, 2);
-    pid1 = fork1("XXp2", XXp2, "XXp2", USLOSS_MIN_STACK, 2);
-    printf("XXp1(): started\n");
-    printf("XXp1(): arg = `%s'\n", arg);
-    for(i = 0; i < 100; i++)
-        ;
-    quit(-3);
-    return 0;
-}
-
-int XXp2(char *arg)
-{
-    int i;
-
     printf("XXp1(): started\n");
     printf("XXp1(): arg = `%s'\n", arg);
     for(i = 0; i < 100; i++)
