@@ -243,8 +243,8 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     /* for future phase(s) */
     p1_fork(ProcTable[procSlot].pid);
 
-    // sentinel exempt
-    if (strcmp("sentinel", name) != 0) {
+    // sentinel and start1 exempt
+    if (strcmp("sentinel", name) != 0 && strcmp("start1", name) != 0) {
         // set current to your parent this doesn't work, not sure why
         ProcTable[procSlot].ppid = Current->pid;
 
