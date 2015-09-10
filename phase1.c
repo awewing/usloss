@@ -67,7 +67,7 @@ void startup()
         ProcTable[i].nextProcPtr = NULL;
         ProcTable[i].childProcPtr = NULL;
         ProcTable[i].nextSiblingPtr = NULL;
-        ProcTable[i].name[0] = '\0';
+        ProcTable[i].name = "EMPTY";
         ProcTable[i].startArg[0] = '\0';
         ProcTable[i].pid = -1;
         ProcTable[i].ppid = -1;
@@ -76,7 +76,11 @@ void startup()
         ProcTable[i].stack = NULL;
         ProcTable[i].stackSize = 0;
         ProcTable[i].status = EMPTY;
+<<<<<<< HEAD
         ProcTable[i].state = NULL;
+=======
+        ProcTable[i].startTime = 0;
+>>>>>>> c7e79eb063caf0b868ad4aa8633fe91273cbc8d1
     }
 
     /* Initialize the Ready list, etc. */
@@ -186,10 +190,24 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
         return -1;
     }
 
-    if (priority > MINPRIORITY && strcmp("sentinel", name) != 0) {
+    if (strcmp("sentinel", name) == 0 && priority != SENTINELPRIORITY) {
+        if (DEBUG && debugflag)
+            USLOSS_Console("Sentinel must have sentinelpriority\n");
+
+        return -1;
+    }
+
+    if (priority > MINPRIORITY) {
         if (DEBUG && debugflag)
             USLOSS_Console("Priority too small\n");
 
+        return -1;
+    }
+
+    if (priority < MAXPRIORITY) {
+        if (DEBUG && debugflag)
+            USLOSS_Console("Priority too big\n");
+    
         return -1;
     }
 
@@ -228,7 +246,7 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     ProcTable[procSlot].stack = malloc(stacksize * sizeof(char));
     ProcTable[procSlot].stackSize = stacksize;
     ProcTable[procSlot].status = READY;
-    ProcTable[procSlot].startTime = USLOSS_Clock();
+    ProcTable[procSlot].startTime = 0;
 
     // inc nextPid
     nextPid++;
@@ -486,4 +504,11 @@ static void clockHandler(int dev, void *arg) {
         USLOSS_Console("clock handler\n");
 
     // compare times
+    int dif = USLOSS_Clock() - Current.startTime;
+    
+    // if the current has been running for its allowed time slice
+    if (dif >= MAXTIMESLICE) {
+        addReady(Current.pid);
+        dispatcher();
+    }
 }

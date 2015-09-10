@@ -49,6 +49,7 @@ union psr_values {
 #define QUIT 1
 #define JOIN_BLOCK 2
 #define ZAP_BLOCK 3
+#define MAXTIMESLICE 20000
 /* homer suggested that we add multiple types of blocks instead of the generic blocked
    for now i added joinblocked, we can add more as we go
  */
