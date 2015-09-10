@@ -258,8 +258,12 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     /* for future phase(s) */
     p1_fork(ProcTable[procSlot].pid);
 
-    // sentinel and start1 exempt
-    if (strcmp("sentinel", name) != 0 && strcmp("start1", name) != 0) {
+    // set parents
+    // sentinel and start1 have no parent
+    if (strcmp("sentinel", name) == 0 || strcmp("start1", name) == 0) {
+        ProcTable[procSlot].ppid = NOPARENT;
+    }
+    else {
         // set current to your parent this doesn't work, not sure why
         ProcTable[procSlot].ppid = Current->pid;
 
@@ -410,6 +414,8 @@ void quit(int code)
     Current->status = QUIT;
 
     p1_quit(Current->pid);
+
+    dispacher();
 } /* quit */
 
 
@@ -503,4 +509,32 @@ static void clockHandler(int dev, void *arg) {
         addReady(Current.pid);
         dispatcher();
     }
+}
+
+void addReady(procPtr *proc) {
+    // check if the ready list is empty
+    if (ReadyList == NULL) {
+        ReadyList = proc;
+    }
+    // if the ready list is already built
+    else {
+        // start at the head of the readylist
+        procPtr *next = ReadyList;
+
+        // go through the readylist looking for your spot
+        for (next; next.nextProcPtr != NULL; next = next.nextProcPtr) {
+            // check if the next priority is greater than yours
+            if (next.nextProcPtr.priority > proc.priority) {
+                break;
+            }
+        }
+
+        // swap next's nextprocptr with the proc to be added
+        proc.nextProcPtr = next.nextProcPtr;
+        next.nextProcPtr = proc;
+    }
+}
+
+procPtr *getNext() {
+
 }
