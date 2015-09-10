@@ -25,6 +25,7 @@ void disableInterrupts();
 static void checkDeadlock();
 void static clockHandler(int dev, void *args);
 void inKernelMode();
+void removeFromReadyList();
 
 /* -------------------------- Globals ------------------------------------- */
 
@@ -75,7 +76,11 @@ void startup()
         ProcTable[i].stack = NULL;
         ProcTable[i].stackSize = 0;
         ProcTable[i].status = EMPTY;
+<<<<<<< HEAD
+        ProcTable[i].state = NULL;
+=======
         ProcTable[i].startTime = 0;
+>>>>>>> c7e79eb063caf0b868ad4aa8633fe91273cbc8d1
     }
 
     /* Initialize the Ready list, etc. */
@@ -276,9 +281,9 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
         else {
             // start at the first child and look until a siblingptr is null
             procPtr child = Current->childProcPtr;
-            for (child; child->nextSiblingPtr != NULL; child = child->nextSiblingPtr) {}
-
-            child->nextSiblingPtr = &ProcTable[procSlot];
+            for (child; child->nextSiblingPtr != NULL; child = child->nextSiblingPtr) {
+              child->nextSiblingPtr = &ProcTable[procSlot];
+            }
         }
     }
 
@@ -361,7 +366,7 @@ int join(int *code)
     while (currProc->nextSiblingPtr != NULL) {
         if (currProc->nextSiblingPtr->status == QUIT) {
             short returnID = currProc->nextSiblingPtr->pid;
-            currProc->nextSiblingPtr == currProc->nextSiblingPtr->nextSiblingPtr
+            currProc->nextSiblingPtr = currProc->nextSiblingPtr->nextSiblingPtr;
             return returnID;
         } else {
             currProc = currProc->nextSiblingPtr;
@@ -369,8 +374,10 @@ int join(int *code)
     }
 
     // No children have quit, remove parent from ready list and block
+    // TODO: better remove method in readyList??
     removeFromReadyList();
-    Current.status = JOINBLOCKED;
+    Current->status = JOINBLOCKED;
+    Current->nextProcPtr = NULL;
 
 } /* join */
 
@@ -384,6 +391,7 @@ int join(int *code)
 void removeFromReadyList()
 {
   procPtr currProc = ReadyList;
+
   while (currProc->nextProcPtr->pid != Current->pid) {
     currProc = currProc->nextProcPtr;
     if (currProc == NULL) {
@@ -425,20 +433,20 @@ void quit(int code)
              priority (the first on the ready list) is scheduled to
              run.  The old process is swapped out and the new process
              swapped in.
-   Parameters - pid or zero if we are popping a proc off the readylist
+   Parameters - void
    Returns - nothing
    Side Effects - the context of the machine is changed
    ----------------------------------------------------------------------- */
-void dispatcher(short pid)
+void dispatcher(void)
 {
-  // TODO: if pid 0
-    // pop process
-    //change it's nextptr
-  // TODO: if pid is a pid
-    // call readylist.add()
-    procPtr nextProcess;
+  // pop process
+  procPtr nextProcess = getNext();
+  nextProcess->nextProcPtr = NULL;
 
-    p1_switch(Current->pid, nextProcess->pid);
+  p1_switch(Current->pid, nextProcess->pid);
+
+  nextProcess->startTime = USLOSS_Clock;
+  USLOSS_ContextSwitch(&(Current->state), &(nextProcess->state));
 } /* dispatcher */
 
 
