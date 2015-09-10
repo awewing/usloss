@@ -334,22 +334,46 @@ int join(int *code)
 
     // Iteratively search for a child that has quit and return its pid
     procPtr currProc = Current->childProcPtr;
-    // TODO: check first child and then check that child's siblings
 
-    while (currProc != NULL) {
-        if (currProc->status == QUIT) {
-            return currProc->pid;
+    if (currProc->status == QUIT) {
+      Current->childProcPtr = currProc->nextSiblingPtr;
+    }
+
+    while (currProc->nextSiblingPtr != NULL) {
+        if (currProc->nextSiblingPtr->status == QUIT) {
+            short returnID = currProc->nextSiblingPtr->pid;
+            currProc->nextSiblingPtr == currProc->nextSiblingPtr->nextSiblingPtr
+            return returnID;
         } else {
             currProc = currProc->nextSiblingPtr;
         }
     }
 
     // No children have quit, remove parent from ready list and block
-    // 
-  
-
+    removeFromReadyList();
+    Current.status = JOINBLOCKED;
 
 } /* join */
+
+/* ------------------------------------------------------------------------
+   Name - removeFromReadyList
+   Purpose - Removes the current process from the ready list
+   Parameters - Nothing
+   Returns - Nothing
+   Side Effects - will change process's nextProcPtr and alter readyList
+   ------------------------------------------------------------------------ */
+void removeFromReadyList()
+{
+  procPtr currProc = ReadyList;
+  while (currProc->nextProcPtr->pid != Current->pid) {
+    currProc = currProc->nextProcPtr;
+    if (currProc == NULL) {
+      if (DEBUG && debugflag)
+        USLOSS_Console("current process is not on readylist");
+      USLOSS_Halt(1);
+    }
+  }
+}
 
 
 /* ------------------------------------------------------------------------
@@ -380,12 +404,17 @@ void quit(int code)
              priority (the first on the ready list) is scheduled to
              run.  The old process is swapped out and the new process
              swapped in.
-   Parameters - none
+   Parameters - pid or zero if we are popping a proc off the readylist
    Returns - nothing
    Side Effects - the context of the machine is changed
    ----------------------------------------------------------------------- */
-void dispatcher(void)
+void dispatcher(short pid)
 {
+  // TODO: if pid 0
+    // pop process
+    //change it's nextptr
+  // TODO: if pid is a pid
+    // call readylist.add()
     procPtr nextProcess;
 
     p1_switch(Current->pid, nextProcess->pid);
