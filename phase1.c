@@ -397,10 +397,12 @@ void quit(int code)
         USLOSS_Halt(1);
     }
 
+    // set the current's status to quit
     Current->status = QUIT;
-
     p1_quit(Current->pid);
 
+    // TODO this
+    // check to see if the parent is join blocked and add parent back to readylist
     dispatcher();
 } /* quit */
 
@@ -418,7 +420,7 @@ void quit(int code)
 void dispatcher(void)
 {
   // pop process
-  procPtr nextProcess = getNext();
+  procPtr nextProcess = pop();
   nextProcess->nextProcPtr = NULL;
 
   p1_switch(Current->pid, nextProcess->pid);
@@ -499,7 +501,6 @@ static void clockHandler(int dev, void *arg) {
     
     // if the current has been running for its allowed time slice
     if (dif >= MAXTIMESLICE) {
-        addReady(Current);
         dispatcher();
     }
 }
