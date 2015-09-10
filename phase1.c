@@ -427,7 +427,7 @@ void dispatcher(void)
 
   nextProcess->startTime = USLOSS_Clock();
 
-  if (Current = NULL) {
+  if (Current == NULL) {
     USLOSS_ContextSwitch(NULL, &(nextProcess->state));
   }
   else {
