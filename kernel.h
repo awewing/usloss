@@ -6,7 +6,7 @@ typedef struct procStruct procStruct;
 typedef struct procStruct * procPtr;
 
 struct procStruct {
-   procPtr         nextProcPtr;
+   procPtr         nextProcPtr;       /* readyList next */
    procPtr         childProcPtr;
    procPtr         nextSiblingPtr;
    char            name[MAXNAME];     /* process's name */
