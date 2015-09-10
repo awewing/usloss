@@ -25,7 +25,9 @@ void disableInterrupts();
 static void checkDeadlock();
 void static clockHandler(int dev, void *args);
 void inKernelMode();
-void removeFromReadyList();
+void dispatcher();
+void add(procPtr proc);
+procPtr pop();
 
 /* -------------------------- Globals ------------------------------------- */
 
@@ -67,7 +69,7 @@ void startup()
         ProcTable[i].nextProcPtr = NULL;
         ProcTable[i].childProcPtr = NULL;
         ProcTable[i].nextSiblingPtr = NULL;
-        ProcTable[i].name = "EMPTY";
+        strcpy(ProcTable[i].name, "EMPTY");
         ProcTable[i].startArg[0] = '\0';
         ProcTable[i].pid = -1;
         ProcTable[i].ppid = -1;
@@ -76,11 +78,7 @@ void startup()
         ProcTable[i].stack = NULL;
         ProcTable[i].stackSize = 0;
         ProcTable[i].status = EMPTY;
-<<<<<<< HEAD
-        ProcTable[i].state = NULL;
-=======
         ProcTable[i].startTime = 0;
->>>>>>> c7e79eb063caf0b868ad4aa8633fe91273cbc8d1
     }
 
     /* Initialize the Ready list, etc. */
@@ -280,8 +278,8 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
         // last child
         else {
             // start at the first child and look until a siblingptr is null
-            procPtr child = Current->childProcPtr;
-            for (child; child->nextSiblingPtr != NULL; child = child->nextSiblingPtr) {
+            procPtr child;
+            for (child = Current->childProcPtr; child->nextSiblingPtr != NULL; child = child->nextSiblingPtr) {
               child->nextSiblingPtr = &ProcTable[procSlot];
             }
         }
@@ -336,7 +334,6 @@ void launch()
 
 } /* launch */
 
-
 /* ------------------------------------------------------------------------
    Name - join
    Purpose - Wait for a child process (if one has been forked) to quit.  If 
@@ -359,49 +356,30 @@ int join(int *code)
     // Iteratively search for a child that has quit and return its pid
     procPtr currProc = Current->childProcPtr;
 
+    // check if its direct child has quit, if so swap that child and its next sibling and
+    // return its pid
     if (currProc->status == QUIT) {
+      short returnPid = currProc->pid;
       Current->childProcPtr = currProc->nextSiblingPtr;
+      return returnPid;
     }
 
+    // otherwise go through the siblings
     while (currProc->nextSiblingPtr != NULL) {
         if (currProc->nextSiblingPtr->status == QUIT) {
-            short returnID = currProc->nextSiblingPtr->pid;
+            short returnPid = currProc->nextSiblingPtr->pid;
             currProc->nextSiblingPtr = currProc->nextSiblingPtr->nextSiblingPtr;
-            return returnID;
+            return returnPid;
         } else {
             currProc = currProc->nextSiblingPtr;
         }
     }
 
     // No children have quit, remove parent from ready list and block
-    // TODO: better remove method in readyList??
-    removeFromReadyList();
-    Current->status = JOINBLOCKED;
-    Current->nextProcPtr = NULL;
-
+    // TODO: better remove method in readyList?
+    Current->status = JOIN_BLOCK;
+    dispatcher();
 } /* join */
-
-/* ------------------------------------------------------------------------
-   Name - removeFromReadyList
-   Purpose - Removes the current process from the ready list
-   Parameters - Nothing
-   Returns - Nothing
-   Side Effects - will change process's nextProcPtr and alter readyList
-   ------------------------------------------------------------------------ */
-void removeFromReadyList()
-{
-  procPtr currProc = ReadyList;
-
-  while (currProc->nextProcPtr->pid != Current->pid) {
-    currProc = currProc->nextProcPtr;
-    if (currProc == NULL) {
-      if (DEBUG && debugflag)
-        USLOSS_Console("current process is not on readylist");
-      USLOSS_Halt(1);
-    }
-  }
-}
-
 
 /* ------------------------------------------------------------------------
    Name - quit
@@ -423,7 +401,7 @@ void quit(int code)
 
     p1_quit(Current->pid);
 
-    dispacher();
+    dispatcher();
 } /* quit */
 
 
@@ -445,8 +423,14 @@ void dispatcher(void)
 
   p1_switch(Current->pid, nextProcess->pid);
 
-  nextProcess->startTime = USLOSS_Clock;
-  USLOSS_ContextSwitch(&(Current->state), &(nextProcess->state));
+  nextProcess->startTime = USLOSS_Clock();
+
+  if (Current = NULL) {
+    USLOSS_ContextSwitch(NULL, &(nextProcess->state));
+  }
+  else {
+    USLOSS_ContextSwitch(&(Current->state), &(nextProcess->state));
+  }
 } /* dispatcher */
 
 
@@ -479,7 +463,8 @@ static void checkDeadlock()
 } /* checkDeadlock */
 
 /*
- * Enables the interrupts TODO write this
+ * Enables the interrupts 
+ * TODO write this
  */
 static void enableInterrupts(int dev, void *args)
 {
@@ -510,16 +495,37 @@ static void clockHandler(int dev, void *arg) {
         USLOSS_Console("clock handler\n");
 
     // compare times
-    int dif = USLOSS_Clock() - Current.startTime;
+    int dif = USLOSS_Clock() - Current->startTime;
     
     // if the current has been running for its allowed time slice
     if (dif >= MAXTIMESLICE) {
-        addReady(Current.pid);
+        addReady(Current);
         dispatcher();
     }
 }
 
-void addReady(procPtr *proc) {
+/* ------------------------------------------------------------------------
+   Name - void add
+   Purpose - This function takes in a procPtr of the process that you wish
+             to add to the ReadyList and puts the process in the readylist 
+             in its appropriate spot. That spot is right before the next 
+             group of priorities. This insures that the newly added process
+             is the last to execute in its group of priorities.
+    
+             To illistrate:
+
+             Item to add's priority: 4
+             ReadyList of priorities: ReadyList v
+                                                1 - 1 - 2 - 3 - 5 - 6
+
+             ReadyList after add:     ReadyList v
+                                                1 - 1 - 2 - 3 - 4 - 5 - 6
+                          
+   Parameters - procPtr of process you wish to add
+   Returns - nothing
+   Side Effects - A new item is added to the readylist
+   ----------------------------------------------------------------------- */
+void add(procPtr proc) {
     // check if the ready list is empty
     if (ReadyList == NULL) {
         ReadyList = proc;
@@ -527,22 +533,36 @@ void addReady(procPtr *proc) {
     // if the ready list is already built
     else {
         // start at the head of the readylist
-        procPtr *next = ReadyList;
+        procPtr next;
 
         // go through the readylist looking for your spot
-        for (next; next.nextProcPtr != NULL; next = next.nextProcPtr) {
+        for (next = ReadyList; next->nextProcPtr != NULL; next = next->nextProcPtr) {
             // check if the next priority is greater than yours
-            if (next.nextProcPtr.priority > proc.priority) {
+            if (next->nextProcPtr->priority > proc->priority) {
                 break;
             }
         }
 
         // swap next's nextprocptr with the proc to be added
-        proc.nextProcPtr = next.nextProcPtr;
-        next.nextProcPtr = proc;
+        proc->nextProcPtr = next->nextProcPtr;
+        next->nextProcPtr = proc;
     }
 }
 
-procPtr *getNext() {
+/* ------------------------------------------------------------------------
+   Name - procPtr pop()
+   Purpose - This function removes and returns the head of the readylist
+             and sets the new head to the old head's next process.           
+   Parameters - nothing
+   Returns - nothing
+   Side Effects - The head of the readylist changes to the next item in 
+                  the readylist.
+   ----------------------------------------------------------------------- */
+procPtr pop() {
+    // swap head of the readylist with the next item in line
+    procPtr temp = ReadyList;
+    ReadyList = ReadyList->nextProcPtr;
 
+    // return the old head of the readylist
+    return temp;
 }
