@@ -70,11 +70,11 @@ void startup()
         ProcTable[i].startArg[0] = '\0';
         ProcTable[i].pid = -1;
         ProcTable[i].ppid = -1;
-        ProcTable[i].priority = MINPRIORITY;
+        ProcTable[i].priority = -1;
         ProcTable[i].start_func = NULL; 
         ProcTable[i].stack = NULL;
         ProcTable[i].stackSize = 0;
-        ProcTable[i].status = QUIT;
+        ProcTable[i].status = EMPTY;
     }
 
     /* Initialize the Ready list, etc. */
@@ -156,7 +156,7 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     /* find an empty slot in the process table */
     int i;
     for (i = 0; i < MAXPROC; i++) {
-        if (ProcTable[i].status == QUIT) {
+        if (ProcTable[i].status == EMPTY) {
             procSlot = i;
             break;
         }
