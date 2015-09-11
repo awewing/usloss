@@ -28,7 +28,7 @@ void inKernelMode();
 void dispatcher();
 void add(procPtr proc);
 procPtr pop();
-
+int findProcSlot();
 /* -------------------------- Globals ------------------------------------- */
 
 /* Patrick's debugging global variable... */
@@ -149,22 +149,16 @@ void finish()
 int fork1(char *name, int (*procCode)(char *), char *arg,
           int stacksize, int priority)
 {
-    int procSlot = -1;
-
     if (DEBUG && debugflag)
         USLOSS_Console("fork1(): creating process %s\n", name);
+
+    // TODO Disable interrupts
 
     /* test if in kernel mode; halt if in user mode */
     inKernelMode();
 
     /* find an empty slot in the process table */
-    int i;
-    for (i = 0; i < MAXPROC; i++) {
-        if (ProcTable[i].status == EMPTY) {
-            procSlot = i;
-            break;
-        }
-    }
+    int procSlot = findProcSlot();
 
     /* Return if stack size is too small, or if name or procCode is null*/
     if (stacksize < USLOSS_MIN_STACK) {
@@ -316,6 +310,8 @@ void inKernelMode()
    ------------------------------------------------------------------------ */
 void launch()
 {
+    // TODO if first time running enable interrupts
+
     int result;
 
     if (DEBUG && debugflag)
@@ -348,6 +344,8 @@ void launch()
    ------------------------------------------------------------------------ */
 int join(int *code)
 {
+    // TODO disable interrupts
+    
     // Make sure current process has child
     if (Current->childProcPtr == NULL) {
         return -2;
@@ -375,8 +373,7 @@ int join(int *code)
         }
     }
 
-    // No children have quit, remove parent from ready list and block
-    // TODO: better remove method in readyList?
+    // No children have quit, block
     Current->status = JOIN_BLOCK;
     dispatcher();
 } /* join */
@@ -425,14 +422,18 @@ void dispatcher(void)
 
   p1_switch(Current->pid, nextProcess->pid);
 
+  // start the timer on the process
   nextProcess->startTime = USLOSS_Clock();
 
+  // context switch
   if (Current == NULL) {
     USLOSS_ContextSwitch(NULL, &(nextProcess->state));
   }
   else {
     USLOSS_ContextSwitch(&(Current->state), &(nextProcess->state));
   }
+
+  // TODO if has run before, Enable interrupts
 } /* dispatcher */
 
 
@@ -500,7 +501,7 @@ static void clockHandler(int dev, void *arg) {
     int dif = USLOSS_Clock() - Current->startTime;
     
     // if the current has been running for its allowed time slice
-    if (dif >= MAXTIMESLICE) {
+    if (dif >= TIMESLICE) {
         dispatcher();
     }
 }
@@ -566,4 +567,38 @@ procPtr pop() {
 
     // return the old head of the readylist
     return temp;
+}
+
+int findProcSlot() {
+    int procSlot = -1;
+    int i; // loop variable
+    int startPid = nextPid;
+
+    // find the next available slot in the table between startPid and MAXPROC
+    for (i = (startPid % MAXPROC); i < MAXPROC; i++) {
+        if (ProcTable[i].status == EMPTY) {
+            procSlot = i;
+            break;
+        }
+        else {
+            nextPid++;
+        }
+    }
+
+    // if there was no free 
+    if (procSlot == -1) {
+        // try to find a free slot between 0 and startPid
+        for (i = 0; i < (startPid % MAXPROC); i++) {
+            if (ProcTable[i].status == EMPTY) {
+                procSlot = i;
+                break;
+            }
+            else {
+                nextPid++;
+            }
+        }
+    }
+
+    // return the free space or -1 if no free space
+    return procSlot;
 }
