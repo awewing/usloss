@@ -152,7 +152,7 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     if (DEBUG && debugflag)
         USLOSS_Console("fork1(): creating process %s\n", name);
 
-    // TODO Disable interrupts
+    disableInterrupts();
 
     /* test if in kernel mode; halt if in user mode */
     inKernelMode();
@@ -279,8 +279,9 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
         }
     }
 
-    /* More stuff to do here... */
+  /* More stuff to do here... */
 
+  dispatcher();
   return ProcTable[procSlot].pid;
 } /* fork1 */
 
@@ -295,9 +296,11 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
    ------------------------------------------------------------------------ */
 void inKernelMode()
 {
-  if (!USLOSS_PSR_CURRENT_MODE)
+  if ( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
+    //not in kernel mode
+    USLOSS_Console("Kernel Error: Not in kernel mode");
     USLOSS_Halt(1);
-
+  }
 } /* inKernelMode */
 
 /* ------------------------------------------------------------------------
@@ -422,9 +425,6 @@ void dispatcher(void)
 
   p1_switch(Current->pid, nextProcess->pid);
 
-  // start the timer on the process
-  nextProcess->startTime = USLOSS_Clock();
-
   // context switch
   if (Current == NULL) {
     USLOSS_ContextSwitch(NULL, &(nextProcess->state));
@@ -432,6 +432,9 @@ void dispatcher(void)
   else {
     USLOSS_ContextSwitch(&(Current->state), &(nextProcess->state));
   }
+
+  // start the timer on the process
+  nextProcess->startTime = USLOSS_Clock();
 
   // TODO if has run before, Enable interrupts
 } /* dispatcher */
@@ -467,11 +470,19 @@ static void checkDeadlock()
 
 /*
  * Enables the interrupts 
- * TODO write this
  */
 static void enableInterrupts(int dev, void *args)
 {
-
+  /* turn the interrupts ON iff we are in kernel mode */
+  if ( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
+    //not in kernel mode
+    USLOSS_Console("Kernel Error: Not in kernel mode, may not ");
+    USLOSS_Console("disable interrupts\n");
+    USLOSS_Halt(1);
+  } else {
+    /* We ARE in kernel mode */
+    USLOSS_PsrSet( USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT); 
+  }
 }
 
 /*
