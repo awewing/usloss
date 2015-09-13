@@ -26,6 +26,13 @@ static void checkDeadlock();
 void static clockHandler(int dev, void *args);
 void inKernelMode();
 void dispatcher();
+int isZapped();
+int getpid();
+void dump_processes();
+int blockMe(int new_status);
+int unblockProc(int pid);
+int readCurStartTime();
+void timeSlice();
 void add(procPtr proc);
 procPtr pop();
 int findProcSlot();
@@ -76,9 +83,12 @@ void startup()
         ProcTable[i].priority = -1;
         ProcTable[i].start_func = NULL; 
         ProcTable[i].stack = NULL;
-        ProcTable[i].stackSize = 0;
+        ProcTable[i].stackSize = -1;
         ProcTable[i].status = EMPTY;
-        ProcTable[i].startTime = 0;
+        ProcTable[i].startTime = -1;
+        ProcTable[i].zapped = -1;
+        ProcTable[i].zappedWhileBlocked = -1;
+        ProcTable[i].kids = -1;
     }
 
     /* Initialize the Ready list, etc. */
@@ -239,6 +249,9 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     ProcTable[procSlot].stackSize = stacksize;
     ProcTable[procSlot].status = READY;
     ProcTable[procSlot].startTime = 0;
+    ProcTable[procSlot].zapped = 0;
+    ProcTable[procSlot].zappedWhileBlocked = 0;
+    ProcTable[procSlot].kids = 0;
 
     // inc nextPid
     nextPid++;
@@ -277,6 +290,11 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
               child->nextSiblingPtr = &ProcTable[procSlot];
             }
         }
+    }
+
+    // inc kids
+    if (Current != NULL) {
+        Current->kids++;
     }
 
   /* More stuff to do here... */
@@ -360,9 +378,11 @@ int join(int *code)
     // check if its direct child has quit, if so swap that child and its next sibling and
     // return its pid
     if (currProc->status == QUIT) {
-      short returnPid = currProc->pid;
-      Current->childProcPtr = currProc->nextSiblingPtr;
-      return returnPid;
+        short returnPid = currProc->pid;
+        Current->childProcPtr = currProc->nextSiblingPtr;
+        
+        Current->kids--;
+        return returnPid;
     }
 
     // otherwise go through the siblings
@@ -370,6 +390,8 @@ int join(int *code)
         if (currProc->nextSiblingPtr->status == QUIT) {
             short returnPid = currProc->nextSiblingPtr->pid;
             currProc->nextSiblingPtr = currProc->nextSiblingPtr->nextSiblingPtr;
+            
+            Current->kids--;
             return returnPid;
         } else {
             currProc = currProc->nextSiblingPtr;
@@ -508,13 +530,7 @@ static void clockHandler(int dev, void *arg) {
     if (DEBUG && debugflag)
         USLOSS_Console("clock handler\n");
 
-    // compare times
-    int dif = USLOSS_Clock() - Current->startTime;
-    
-    // if the current has been running for its allowed time slice
-    if (dif >= TIMESLICE) {
-        dispatcher();
-    }
+    timeSlice();
 }
 
 /* ------------------------------------------------------------------------
@@ -580,6 +596,15 @@ procPtr pop() {
     return temp;
 }
 
+/* ------------------------------------------------------------------------
+   Name - int findProcSlot
+   Purpose - This function finds the next available free slot in the
+             process table and returns it. It also adjusts nextPid to be
+             the correct PID for that table slot.         
+   Parameters - nothing
+   Returns - nothing
+   Side Effects - nothing
+   ----------------------------------------------------------------------- */
 int findProcSlot() {
     int procSlot = -1;
     int i; // loop variable
@@ -596,7 +621,7 @@ int findProcSlot() {
         }
     }
 
-    // if there was no free 
+    // if there was no free slot in the previous loop
     if (procSlot == -1) {
         // try to find a free slot between 0 and startPid
         for (i = 0; i < (startPid % MAXPROC); i++) {
@@ -612,4 +637,106 @@ int findProcSlot() {
 
     // return the free space or -1 if no free space
     return procSlot;
+}
+
+int isZapped() {
+    return Current->zapped;
+}
+
+int getpid() {
+    return Current->pid;
+}
+
+void dump_processes() {
+    USLOSS_Console("PID	Parent	Priority	Status		# Kids	Name\n");
+
+    int i;
+    for (i = 0; i < MAXPROC; i++) {
+        USLOSS_Console("%3d	", ProcTable[i].pid);
+        USLOSS_Console("%4d	", ProcTable[i].ppid);
+        USLOSS_Console("%5d	", ProcTable[i].priority);
+
+        if (Current->pid == ProcTable[i].pid) {
+            USLOSS_Console("RUNNING		");
+        }
+        else if (ProcTable[i].status == EMPTY) {
+            USLOSS_Console("EMPTY		");
+        }
+        else if (ProcTable[i].status == READY) {
+            USLOSS_Console("READY		");
+        }
+        else if (ProcTable[i].status == QUIT) {
+            USLOSS_Console("QUIT		");
+        }
+        else if (ProcTable[i].status == JOIN_BLOCK) {
+            USLOSS_Console("JOIN_BLOCK	");
+        }
+        else if (ProcTable[i].status == ZAP_BLOCK) {
+            USLOSS_Console("ZAP_BLOCK	");
+        }
+    }
+
+    USLOSS_Console("%3d     ", ProcTable[i].kids);
+    USLOSS_Console("%s", ProcTable[i].name);
+}
+
+int blockMe(int new_status) {
+    // check to see if it this function is allowed to be called
+    if (Current->zappedWhileBlocked != 0) {
+        return -1;
+    }
+
+    if (new_status < 10) {
+        USLOSS_Console("new_status must be greater than or equal to 10.\n");
+        USLOSS_Halt(1);
+    }
+
+    // it is allowed to be blocked, change stus and return
+    Current->status = new_status;
+    return 0;
+}
+
+int unblockProc(int pid) {
+    // get the actual process from the pid
+    procPtr proc = &ProcTable[pid % 50];
+
+    // check to see if it is allowed to unblock
+    if (Current->pid == pid) {
+        return -2;
+    }
+
+    if (proc->status == EMPTY) {
+        return -2;
+    }
+
+    if (proc->status != JOIN_BLOCK && proc->status != ZAP_BLOCK) {
+        return -2;
+    }
+
+    if (proc->status >= 10) {
+        return -2;
+    }
+
+    if (Current->zapped != 0) {
+        return -1;
+    }
+
+    // the process can be unblocked so unblock it
+    proc->status = READY;
+    add(proc);
+    return 0;
+}
+
+int readCurStartTime() {
+    return Current->startTime;
+}
+
+void timeSlice() {
+    // compare times
+    int dif = USLOSS_Clock() - readCurStartTime();
+
+    // if the current has been running for its allowed time slice
+    if (dif >= TIMESLICE) {
+        dispatcher();
+    }
 }

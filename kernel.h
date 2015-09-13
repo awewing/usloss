@@ -20,7 +20,9 @@ struct procStruct {
    unsigned int    stackSize;
    int             status;            /* READY, BLOCKED, QUIT, etc. */
    int             startTime;
-
+   int             zapped;            /* if the process was zapped */
+   int             zappedWhileBlocked;/*if the process was zapped while it was blocked */
+   int             kids;
    /* other fields as needed... */
 };
 
