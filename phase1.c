@@ -36,6 +36,7 @@ void timeSlice();
 void add(procPtr proc);
 procPtr pop();
 int findProcSlot();
+short removeChild(void);
 /* -------------------------- Globals ------------------------------------- */
 
 /* Patrick's debugging global variable... */
@@ -64,6 +65,7 @@ unsigned int nextPid = SENTINELPID;
    ----------------------------------------------------------------------- */
 void startup()
 {
+
     int i;      /* loop index */
     int result; /* value returned by call to fork1() */
 
@@ -298,6 +300,8 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     }
 
   /* More stuff to do here... */
+  // add child to ready list
+  add(&(ProcTable[procSlot]));
 
   dispatcher();
   return ProcTable[procSlot].pid;
@@ -331,8 +335,6 @@ void inKernelMode()
    ------------------------------------------------------------------------ */
 void launch()
 {
-    // TODO if first time running enable interrupts
-
     int result;
 
     if (DEBUG && debugflag)
@@ -365,8 +367,8 @@ void launch()
    ------------------------------------------------------------------------ */
 int join(int *code)
 {
-    // TODO disable interrupts
-    
+    disableInterrupts();
+
     // Make sure current process has child
     if (Current->childProcPtr == NULL) {
         return -2;
@@ -397,11 +399,53 @@ int join(int *code)
             currProc = currProc->nextSiblingPtr;
         }
     }
+    short quitChild = removeChild();
 
-    // No children have quit, block
+    if (quitChild != -1) 
+      return quitChild;
+
+    // Otherwise, No children have quit, block
     Current->status = JOIN_BLOCK;
     dispatcher();
+
+    // will run again when a child has quit, look for child
+    return removeChild();
 } /* join */
+
+/* ------------------------------------------------------------------------
+   Name - removeChild
+   Purpose - Helper function for join()
+             remove a child that has quit and return its pid
+   Parameters - none
+   Returns - pid of the quit process
+             or -1 if no child has quit
+   Side Effects - removes the child from the parents linked list of children
+------------------------------------------------------------------------ */
+short removeChild(void) {
+  procPtr currProc = Current->childProcPtr;
+
+  // check if its direct child has quit, if so swap that child and its next sibling and
+  // return its pid
+  if (currProc->status == QUIT) {
+    short returnPid = currProc->pid;
+    Current->childProcPtr = currProc->nextSiblingPtr;
+    return returnPid;
+  }
+  
+  // otherwise go through the siblings
+  while (currProc->nextSiblingPtr != NULL) {
+    if (currProc->nextSiblingPtr->status == QUIT) {
+      short returnPid = currProc->nextSiblingPtr->pid;
+      currProc->nextSiblingPtr = currProc->nextSiblingPtr->nextSiblingPtr;
+      return returnPid;
+    } else {
+      currProc = currProc->nextSiblingPtr;
+    }
+  }
+
+  // no child quit, return -1
+  return -1;
+}
 
 /* ------------------------------------------------------------------------
    Name - quit
@@ -423,8 +467,6 @@ void quit(int code)
     Current->status = QUIT;
     p1_quit(Current->pid);
 
-    // TODO this
-    // check to see if the parent is join blocked and add parent back to readylist
     dispatcher();
 } /* quit */
 
@@ -441,6 +483,23 @@ void quit(int code)
    ----------------------------------------------------------------------- */
 void dispatcher(void)
 {
+  // If Current has quit
+  if (Current->status == QUIT) {
+    // check to see if the parent is join blocked and add parent back to readylist
+    int parentIndex = (Current->ppid) % 50;
+    procPtr parent = &(ProcTable[parentIndex]);
+    
+    if (parent->status == JOIN_BLOCK) {
+      parent->status = READY;
+      add(parent);
+    }
+  }
+
+  // If Clock interrupt or fork1
+  else if (Current->status == READY) {
+    add(Current);
+  }
+
   // pop process
   procPtr nextProcess = pop();
   nextProcess->nextProcPtr = NULL;
@@ -458,7 +517,7 @@ void dispatcher(void)
   // start the timer on the process
   nextProcess->startTime = USLOSS_Clock();
 
-  // TODO if has run before, Enable interrupts
+  enableInterrupts();
 } /* dispatcher */
 
 
@@ -488,6 +547,11 @@ int sentinel (char *dummy)
 /* check to determine if deadlock has occurred... */
 static void checkDeadlock()
 {
+  for (int i = 0; i < 50; i++) {
+    if (ProcTable[i].status == READY)
+      return;
+  }
+  USLOSS_Halt(1);
 } /* checkDeadlock */
 
 /*
@@ -639,6 +703,14 @@ int findProcSlot() {
     return procSlot;
 }
 
+/* ------------------------------------------------------------------------
+   Name - isZapped
+   Purpose - check if the current process has been zapped by another process
+   Parameters - void
+   Returns - 0 if the process has not been zapped
+              1 if the process is currently zapped
+   Side Effects - none
+   ----------------------------------------------------------------------- */
 int isZapped() {
     return Current->zapped;
 }
@@ -739,4 +811,23 @@ void timeSlice() {
     if (dif >= TIMESLICE) {
         dispatcher();
     }
+}
+
+/* ------------------------------------------------------------------------
+   Name - zap
+   Purpose - The process calling zap will block until the process at the
+             designated pid quits          
+   Parameters - short pid of the process will be waited on to quit
+   Returns - 0 if/when the process that is zapped quits
+             -1 if the process calling zap is already zapped
+   Side Effects - Blocks the process calling zap.
+   ----------------------------------------------------------------------- */
+int zap(short pid)
+{
+  // verify the calling proces is not zapped
+  if (isZapped) {
+    return -1;
+  }
+
+
 }
