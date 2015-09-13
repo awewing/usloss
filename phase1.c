@@ -721,6 +721,25 @@ int isZapped() {
     return Current->zapped;
 }
 
+/* ------------------------------------------------------------------------
+   Name - zap
+   Purpose - The process calling zap will block until the process at the
+             designated pid quits          
+   Parameters - short pid of the process will be waited on to quit
+   Returns - 0 if/when the process that is zapped quits
+             -1 if the process calling zap is already zapped
+   Side Effects - Blocks the process calling zap.
+   ----------------------------------------------------------------------- */
+int zap(int pid)
+{
+  // verify the calling proces is not zapped
+  if (isZapped) {
+    return -1;
+  }
+
+  
+}
+
 int getpid() {
     return Current->pid;
 }
@@ -817,23 +836,4 @@ void timeSlice() {
     if (dif >= TIMESLICE) {
         dispatcher();
     }
-}
-
-/* ------------------------------------------------------------------------
-   Name - zap
-   Purpose - The process calling zap will block until the process at the
-             designated pid quits          
-   Parameters - short pid of the process will be waited on to quit
-   Returns - 0 if/when the process that is zapped quits
-             -1 if the process calling zap is already zapped
-   Side Effects - Blocks the process calling zap.
-   ----------------------------------------------------------------------- */
-int zap(short pid)
-{
-  // verify the calling proces is not zapped
-  if (isZapped) {
-    return -1;
-  }
-
-
 }
