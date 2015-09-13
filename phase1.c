@@ -505,6 +505,11 @@ int sentinel (char *dummy)
 /* check to determine if deadlock has occurred... */
 static void checkDeadlock()
 {
+  for (int i = 0; i < 50; i++) {
+    if (ProcTable[i].status == READY)
+      return;
+  }
+  USLOSS_Halt(1);
 } /* checkDeadlock */
 
 /*
