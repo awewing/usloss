@@ -733,7 +733,7 @@ int isZapped() {
 int zap(int pid)
 {
   // verify the calling proces is not zapped
-  if (isZapped) {
+  if (Current->isZapped) {
     return -1;
   }
 
