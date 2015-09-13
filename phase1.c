@@ -724,12 +724,15 @@ int isZapped() {
              -1 if the process calling zap is already zapped
    Side Effects - Blocks the process calling zap.
    ----------------------------------------------------------------------- */
-int zap(short pid)
+int zap(int pid)
 {
   // verify the calling proces is not zapped
   if (isZapped) {
     return -1;
   }
+
+  
+}
 
 int getpid() {
     return Current->pid;
@@ -827,6 +830,4 @@ void timeSlice() {
     if (dif >= TIMESLICE) {
         dispatcher();
     }
-}
-
 }
