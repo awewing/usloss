@@ -58,6 +58,7 @@ unsigned int nextPid = SENTINELPID;
    ----------------------------------------------------------------------- */
 void startup()
 {
+
     int i;      /* loop index */
     int result; /* value returned by call to fork1() */
 
@@ -650,4 +651,36 @@ int findProcSlot() {
 
     // return the free space or -1 if no free space
     return procSlot;
+}
+
+/* ------------------------------------------------------------------------
+   Name - zap
+   Purpose - The process calling zap will block until the process at the
+             designated pid quits          
+   Parameters - short pid of the process will be waited on to quit
+   Returns - 0 if/when the process that is zapped quits
+             -1 if the process calling zap is already zapped
+   Side Effects - Blocks the process calling zap.
+   ----------------------------------------------------------------------- */
+int zap(short pid)
+{
+  // verify the calling proces is not zapped
+  if (isZapped) {
+    return -1;
+  }
+
+
+}
+
+/* ------------------------------------------------------------------------
+   Name - isZapped
+   Purpose - check if the current process has been zapped by another process
+   Parameters - void
+   Returns - 0 if the process has not been zapped
+              1 if the process is currently zapped
+   Side Effects - none
+   ----------------------------------------------------------------------- */
+int isZapped(void)
+{
+
 }
