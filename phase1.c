@@ -150,10 +150,6 @@ void finish()
 int fork1(char *name, int (*procCode)(char *), char *arg,
           int stacksize, int priority)
 {
-
-    // TODO get rid of this
-    USLOSS_Halt(1);
-
     if (DEBUG && debugflag)
         USLOSS_Console("fork1(): creating process %s\n", name);
 
