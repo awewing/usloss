@@ -23,6 +23,7 @@ struct procStruct {
    int             zapped;            /* if the process was zapped */
    int             zappedWhileBlocked;/*if the process was zapped while it was blocked */
    int             kids;
+   int             zapList[MAXPROC];
    /* other fields as needed... */
 };
 

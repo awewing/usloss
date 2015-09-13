@@ -91,6 +91,11 @@ void startup()
         ProcTable[i].zapped = -1;
         ProcTable[i].zappedWhileBlocked = -1;
         ProcTable[i].kids = -1;
+
+        int j;
+        for (j = 0; j < MAXPROC; j++) {
+            ProcTable[i].zapList[j] = -1;
+        }
     }
 
     /* Initialize the Ready list, etc. */
@@ -547,7 +552,8 @@ int sentinel (char *dummy)
 /* check to determine if deadlock has occurred... */
 static void checkDeadlock()
 {
-  for (int i = 0; i < 50; i++) {
+  int i;
+  for (i = 0; i < 50; i++) {
     if (ProcTable[i].status == READY)
       return;
   }
