@@ -493,6 +493,9 @@ void dispatcher(void)
       parent->status = READY;
       add(parent);
     }
+
+    // check to see if there are processes zapping this process
+    
   }
 
   // If Clock interrupt or fork1
@@ -731,7 +734,7 @@ int zap(int pid)
     return -1;
   }
 
-  
+
 }
 
 int getpid() {
