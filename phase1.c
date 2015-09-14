@@ -94,7 +94,7 @@ void startup()
 
         int j;
         for (j = 0; j < MAXPROC; j++) {
-            ProcTable[i].zapList[j] = -1;
+            ProcTable[i].zapList[j] = NULL;
         }
     }
 
@@ -500,6 +500,15 @@ void dispatcher(void)
     }
 
     // check to see if there are processes zapping this process
+    int zapi = 0;
+    procPtr currProc = Current->zapList[zapi];
+    while (currProc != NULL) {
+      currProc->status = READY;
+      add(currProc);  
+
+      zapi++;
+      currProc = Current->zapList[zapi];
+    }
     
   }
 
@@ -736,11 +745,27 @@ int isZapped() {
 int zap(int pid)
 {
   // verify the calling proces is not zapped
-  if (Current->isZapped) {
+  if (Current->zapped) {
     return -1;
   }
 
+  procPtr zappedProc = &ProcTable[pid];
 
+  // Add calling process to zappedProc's zapList
+  int index = 0;
+  while (zappedProc->zapList[index] != NULL) {
+    index++;
+  }
+  zappedProc->zapList[index] = Current;
+
+  //Change zapped Boolean value
+  zappedProc->zapped = 1;
+
+  // Zap block calling process
+  Current->status = ZAP_BLOCK;
+
+  dispatcher();
+  return 0;
 }
 
 int getpid() {
