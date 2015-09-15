@@ -65,7 +65,6 @@ unsigned int nextPid = SENTINELPID;
    ----------------------------------------------------------------------- */
 void startup()
 {
-
     int i;      /* loop index */
     int result; /* value returned by call to fork1() */
 
@@ -763,6 +762,11 @@ int zap(int pid)
 
   // Zap block calling process
   Current->status = ZAP_BLOCK;
+
+  // zappedWhileBlocked status
+  if (zappedProc->status == JOIN_BLOCK || zappedProc->status == ZAP_BLOCK) {
+    zappedProc->zappedWhileBlocked = 1;
+  }
 
   dispatcher();
   return 0;
