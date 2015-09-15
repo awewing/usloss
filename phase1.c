@@ -307,7 +307,9 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
   // add child to ready list
   add(&(ProcTable[procSlot]));
 
-  dispatcher();
+  if (strcmp("sentinel", name) != 0) {
+    dispatcher();
+  }
   return ProcTable[procSlot].pid;
 } /* fork1 */
 
