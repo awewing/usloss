@@ -205,7 +205,7 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
         return -1;
     }
 
-    if (priority > MINPRIORITY) {
+    if (priority > MINPRIORITY && strcmp("sentinel", name) != 0) {
         if (DEBUG && debugflag)
             USLOSS_Console("Priority too small\n");
 
