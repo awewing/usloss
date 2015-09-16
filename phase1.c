@@ -310,6 +310,7 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
   if (strcmp("sentinel", name) != 0) {
     dispatcher();
   }
+
   return ProcTable[procSlot].pid;
 } /* fork1 */
 
@@ -350,7 +351,7 @@ void launch()
     enableInterrupts();
 
     /* Call the function passed to fork1, and capture its return value */
-    result = Current->start_func(Current->startArg);
+    result = Current->start_func(Current->startArg); //TODO currently crashing here. we need to actually call this function
 
     if (DEBUG && debugflag)
         USLOSS_Console("Process %d returned to launch\n", Current->pid);
@@ -488,52 +489,55 @@ void quit(int code)
    Side Effects - the context of the machine is changed
    ----------------------------------------------------------------------- */
 void dispatcher(void)
-{
-  // If Current has quit
-  if (Current->status == QUIT) {
-    // check to see if the parent is join blocked and add parent back to readylist
-    int parentIndex = (Current->ppid) % 50;
-    procPtr parent = &(ProcTable[parentIndex]);
-    
-    if (parent->status == JOIN_BLOCK) {
-      parent->status = READY;
-      add(parent);
-    }
-
-    // check to see if there are processes zapping this process
-    int zapi = 0;
-    procPtr currProc = Current->zapList[zapi];
-    while (currProc != NULL) {
-      currProc->status = READY;
-      add(currProc);  
-
-      zapi++;
-      currProc = Current->zapList[zapi];
-    }
-    
-  }
-
-  // If Clock interrupt or fork1
-  else if (Current->status == READY) {
-    add(Current);
-  }
-
+{ 
   // pop process
   procPtr nextProcess = pop();
-  nextProcess->nextProcPtr = NULL;
 
-  p1_switch(Current->pid, nextProcess->pid);
-
-  // context switch
+  // first check if current is null 
   if (Current == NULL) {
+    p1_switch(-1, nextProcess->pid);
+
+    // context switch
     USLOSS_ContextSwitch(NULL, &(nextProcess->state));
   }
   else {
+    // If Current has quit
+    if (Current->status == QUIT) {
+      // check to see if the parent is join blocked and add parent back to readylist
+      int parentIndex = (Current->ppid) % 50;
+      procPtr parent = &(ProcTable[parentIndex]);
+    
+      if (parent->status == JOIN_BLOCK) {
+        parent->status = READY;
+        add(parent);
+      }
+
+      // check to see if there are processes zapping this process
+      int zapi = 0;
+      procPtr currProc = Current->zapList[zapi];
+      while (currProc != NULL) {
+        currProc->status = READY;
+        add(currProc);  
+
+        zapi++;
+        currProc = Current->zapList[zapi];
+      }    
+    }
+
+    // If Clock interrupt or fork1
+    else if (Current->status == READY) {
+      add(Current);
+    }
+
+    p1_switch(Current->pid, nextProcess->pid);
+  
+    // context switch
     USLOSS_ContextSwitch(&(Current->state), &(nextProcess->state));
   }
 
-  // start the timer on the process
-  nextProcess->startTime = USLOSS_Clock();
+  // change current  to the new process and start its timer
+  Current = nextProcess;  
+  Current->startTime = USLOSS_Clock();
 
   enableInterrupts();
 } /* dispatcher */
@@ -638,11 +642,20 @@ static void clockHandler(int dev, void *arg) {
    Side Effects - A new item is added to the readylist
    ----------------------------------------------------------------------- */
 void add(procPtr proc) {
+    if (DEBUG && debugflag)
+        USLOSS_Console("Adding process with pid %d and priority %d\n", proc->pid, proc->priority);
+
     // check if the ready list is empty
     if (ReadyList == NULL) {
         ReadyList = proc;
     }
-    // if the ready list is already built
+    // check if proc's priority is greater than the heads
+    else if (proc->priority < ReadyList->priority) {
+        // switch the current head with the new proc
+        proc->nextProcPtr = ReadyList;
+        ReadyList = proc;
+    }
+    // else the ready list is already built and the new proc has a lower priority than the head
     else {
         // start at the head of the readylist
         procPtr next;
@@ -674,6 +687,9 @@ procPtr pop() {
     // swap head of the readylist with the next item in line
     procPtr temp = ReadyList;
     ReadyList = ReadyList->nextProcPtr;
+
+    // change the next procPtr on temp to nothing
+    temp->nextProcPtr = NULL;
 
     // return the old head of the readylist
     return temp;
