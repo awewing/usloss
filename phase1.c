@@ -484,25 +484,65 @@ void quit(int code)
              priority (the first on the ready list) is scheduled to
              run.  The old process is swapped out and the new process
              swapped in.
-   Parameters - void
+   Parameters - reason -
+                        0 - called from fork1
+                        1 - called from join
+                        2 - called from quit
+                        3 - called from clock interrupt
+                process - Will be NULL or Current except for fork1, 
+                        where it is the childProcess that has just been
+                        created.
    Returns - nothing
    Side Effects - the context of the machine is changed
    ----------------------------------------------------------------------- */
-void dispatcher(void)
+void dispatcher(int reason, procPtr process)
 { 
-  // pop process
-  procPtr nextProcess = pop();
-
-  // first check if current is null 
+  // procPtr nextProcess = pop();
   if (Current == NULL) {
     p1_switch(-1, nextProcess->pid);
 
     // context switch
     USLOSS_ContextSwitch(NULL, &(nextProcess->state));
   }
-  else {
-    // If Current has quit
-    if (Current->status == QUIT) {
+
+  switch (reason) {
+    case 0:
+      // fork1 Condition
+      if (DEBUG && debugflag)
+        USLOSS_Console("dispatcher(): called from fork1");
+      // execute parent or child, whichever has higher priority
+      //  if same priority, execute child
+      if (Current->priority > process->priority) {
+        // Continue to execute parent, put child on readyList
+        add(process);
+        enableInterrupts();
+        return;
+      }
+      else {
+        // execute child, add parent to readylist
+        add(Current);
+        p1_switch(Current->pid, process->pid);
+        ContextSwitch(&(Current->state), &(process->state))
+        Current = process;
+      }
+      break;
+
+    case 1:
+      // join Condition
+      if (DEBUG && debugflag)
+        USLOSS_Console("dispatcher(): called from join()");
+
+      // execute next process on readyList
+      procPtr nextProcess = pop();
+      p1_switch(Current->pid, nextProcess->pid);
+      ContextSwitch(&(Current->state), &(nextProcess->state));
+      break;
+
+    case 2:
+      // quit Condition
+      if (DEBUG && debugflag)
+        USLOSS_Console("dispatcher(): called from quit()");
+
       // check to see if the parent is join blocked and add parent back to readylist
       int parentIndex = (Current->ppid) % 50;
       procPtr parent = &(ProcTable[parentIndex]);
@@ -521,24 +561,32 @@ void dispatcher(void)
 
         zapi++;
         currProc = Current->zapList[zapi];
-      }    
-    }
+        break;
+      }
 
-    // If Clock interrupt or fork1
-    else if (Current->status == READY) {
+      // begin next process
+      procPtr nextProcess = pop();
+      Current = nextProcess;
+      p1_switch(Current->pid, nextProcess->pid);
+      ContextSwitch(&(Current->state), &(nextProcess->state));
+      break;
+
+    case 3:
+      // clock Condition
+      if (DEBUG && debugflag)
+        USLOSS_Console("dispatcher(): called from clock");
+      
+      // Add the incomplete process to the readyList and context switch
       add(Current);
-    }
+      procPtr nextProcess = pop();
+      Current = nextProcess;
+      p1_switch(Current->pid, nextProcess->pid);
+      ContextSwitch(&(Current->state), &(nextProcess->state))
+      break;
 
-    p1_switch(Current->pid, nextProcess->pid);
-  
-    // context switch
-    USLOSS_ContextSwitch(&(Current->state), &(nextProcess->state));
   }
-
-  // change current  to the new process and start its timer
-  Current = nextProcess;  
+  
   Current->startTime = USLOSS_Clock();
-
   enableInterrupts();
 } /* dispatcher */
 
