@@ -40,7 +40,7 @@ short removeChild(void);
 /* -------------------------- Globals ------------------------------------- */
 
 /* Patrick's debugging global variable... */
-int debugflag = 1;
+int debugflag = 0;
 
 /* the process table */
 procStruct ProcTable[MAXPROC];
@@ -251,7 +251,7 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     // set the rest of the proc's info
     ProcTable[procSlot].pid = nextPid;
     ProcTable[procSlot].priority = priority;
-    ProcTable[procSlot].stack = malloc(stacksize * sizeof(char));
+    ProcTable[procSlot].stack = malloc(stacksize);
     ProcTable[procSlot].stackSize = stacksize;
     ProcTable[procSlot].status = READY;
     ProcTable[procSlot].startTime = 0;
@@ -303,15 +303,15 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
         Current->kids++;
     }
 
-  /* More stuff to do here... */
-  // add child to ready list
-  add(&(ProcTable[procSlot]));
+    /* More stuff to do here... */
+    // add child to ready list
+    add(&(ProcTable[procSlot]));
 
-  if (strcmp("sentinel", name) != 0) {
-    dispatcher();
-  }
+    if (strcmp("sentinel", name) != 0) {
+      dispatcher();
+    }
 
-  return ProcTable[procSlot].pid;
+    return ProcTable[procSlot].pid;
 } /* fork1 */
 
 /* ------------------------------------------------------------------------
@@ -351,7 +351,7 @@ void launch()
     enableInterrupts();
 
     /* Call the function passed to fork1, and capture its return value */
-    result = Current->start_func(Current->startArg); //TODO currently crashing here. we need to actually call this function
+    result = Current->start_func(Current->startArg);
 
     if (DEBUG && debugflag)
         USLOSS_Console("Process %d returned to launch\n", Current->pid);
@@ -493,9 +493,15 @@ void dispatcher(void)
   // pop process
   procPtr nextProcess = pop();
 
-  // first check if current is null 
+  // check if current is null 
   if (Current == NULL) {
     p1_switch(-1, nextProcess->pid);
+ 
+    enableInterrupts();
+
+    // change current  to the new process and start its timer
+    Current = nextProcess;
+    Current->startTime = USLOSS_Clock();
 
     // context switch
     USLOSS_ContextSwitch(NULL, &(nextProcess->state));
@@ -531,15 +537,16 @@ void dispatcher(void)
 
     p1_switch(Current->pid, nextProcess->pid);
   
+    enableInterrupts();
+
+    // change current  to the new process and start its timer
+    procPtr old = Current;
+    Current = nextProcess;
+    Current->startTime = USLOSS_Clock();
+
     // context switch
-    USLOSS_ContextSwitch(&(Current->state), &(nextProcess->state));
+    USLOSS_ContextSwitch(&(old->state), &(Current->state));
   }
-
-  // change current  to the new process and start its timer
-  Current = nextProcess;  
-  Current->startTime = USLOSS_Clock();
-
-  enableInterrupts();
 } /* dispatcher */
 
 
