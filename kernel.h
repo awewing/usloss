@@ -24,6 +24,7 @@ struct procStruct {
    int             zappedWhileBlocked;/*if the process was zapped while it was blocked */
    int             kids;
    procPtr         zapList[MAXPROC];
+   int             quitStatus;         /* used to comunicate between quit child and parent*/
    /* other fields as needed... */
 };
 

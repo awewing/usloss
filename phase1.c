@@ -39,7 +39,7 @@ short removeChild(void);
 /* -------------------------- Globals ------------------------------------- */
 
 /* Patrick's debugging global variable... */
-int debugflag = 0;
+int debugflag = 1;
 
 /* the process table */
 procStruct ProcTable[MAXPROC];
@@ -415,7 +415,11 @@ int join(int *code)
     dispatcher(1, NULL);
 
     // will run again when a child has quit, look for child
-    return removeChild();
+    int childID = removeChild();
+    procPtr child = &(ProcTable[childID % 50]);
+
+    *code = child->quitStatus;
+    return childID;
 } /* join */
 
 /* ------------------------------------------------------------------------
@@ -468,6 +472,9 @@ void quit(int code)
     if (Current->childProcPtr != NULL) {
         USLOSS_Halt(1);
     }
+
+    // set quitStatus
+    Current->quitStatus = code;
 
     // set the current's status to quit
     Current->status = QUIT;
@@ -643,8 +650,8 @@ int sentinel (char *dummy)
 /* check to determine if deadlock has occurred... */
 static void checkDeadlock()
 {
-  int numReady; // how many procs are left as ready
-  int numActive; // number of processes still running
+  int numReady = 0; // how many procs are left as ready
+  int numActive = 0; // number of processes still running
   int i; // loop variable
 
   // go through the proc table and count processes running and process ready
