@@ -292,8 +292,10 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
             // start at the first child and look until a siblingptr is null
             procPtr child;
             for (child = Current->childProcPtr; child->nextSiblingPtr != NULL; child = child->nextSiblingPtr) {
-              child->nextSiblingPtr = &ProcTable[procSlot];
+              break;
             }
+
+            child->nextSiblingPtr = &ProcTable[procSlot];
         }
     }
 
@@ -415,8 +417,52 @@ int join(int *code)
     dispatcher(1, NULL);
 
     // will run again when a child has quit, look for child
-    int childID = removeChild();
-    procPtr child = &(ProcTable[childID % 50]);
+    procPtr child = Current->childProcPtr;
+    procPtr prev = Current->childProcPtr;
+    if (child->nextSiblingPtr == NULL) {
+      // remove this child
+      Current->childProcPtr = NULL;
+
+    }
+    else {
+      while (child->nextSiblingPtr != NULL || child->nextSiblingPtr->status == QUIT) {
+        
+        USLOSS_Console("\tjoin() while: prev = %d\n", prev->pid);
+        USLOSS_Console("\tjoin() while: child = %d\n", child->pid);
+        prev = child;
+        child = child->nextSiblingPtr;
+      }
+
+      USLOSS_Console("join() final: prev = %d\n", prev->pid);
+      USLOSS_Console("join() final: child = %d\n", child->pid);
+      // remove this child->nextSibling;
+      prev->nextSiblingPtr = child->nextSiblingPtr;
+    }
+
+
+
+
+        // for (nextIsChild = parent->childProcPtr; nextIsChild->nextSiblingPtr != NULL; nextIsChild = nextIsChild->nextSiblingPtr) {
+        //   if (nextIsChild->nextSiblingPtr->pid == Current->pid) {
+        //     // swap the parents child ptr with the quitting process
+        //     procPtr oldChild = parent->childProcPtr;
+        //     procPtr newChild = nextIsChild->nextSiblingPtr;
+        //     parent->childProcPtr = newChild;
+        //     nextIsChild->nextSiblingPtr = newChild->nextSiblingPtr;
+        //     newChild->nextSiblingPtr = oldChild;
+        //     break;
+        //   }
+        // }  
+    
+
+
+
+
+
+
+
+    int childID = (int) child->pid;
+    child = &(ProcTable[childID % 50]);
 
     *code = child->quitStatus;
     return childID;
@@ -497,7 +543,7 @@ void quit(int code)
             procPtr newChild = nextIsChild->nextSiblingPtr;
             parent->childProcPtr = newChild;
             nextIsChild->nextSiblingPtr = newChild->nextSiblingPtr;
-            newChild->nextSiblingPtr =oldChild;
+            newChild->nextSiblingPtr = oldChild;
             break;
           }
         }  
@@ -544,7 +590,9 @@ void dispatcher(int reason, procPtr process)
     enableInterrupts();
     USLOSS_ContextSwitch(NULL, &(nextProcess->state));  
   }
-  else {dump_processes();
+  else {
+    if (DEBUG && debugflag)
+      dump_processes();
     if (reason == 0) {
       // fork1 Condition
       if (DEBUG && debugflag)
@@ -602,6 +650,9 @@ void dispatcher(int reason, procPtr process)
         // set parent back to ready and add it back to the ready list
         parent->status = READY;
         add(parent);
+      }
+      else {
+
       }
 
       // check to see if there are processes zapping this process
