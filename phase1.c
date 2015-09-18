@@ -480,6 +480,30 @@ void quit(int code)
     Current->status = QUIT;
     p1_quit(Current->pid);
 
+    // if the quitting process has a parent, make it the first child of the parent
+    if (Current->ppid != NOPARENT) {
+      // find the parent
+      procPtr parent = &ProcTable[Current->ppid % 50];
+
+      // find the child in the proc
+      procPtr nextIsChild;
+
+      // if quit child isn't already the first child
+      if (parent->childProcPtr->pid != Current->pid) {
+        for (nextIsChild = parent->childProcPtr; nextIsChild->nextSiblingPtr != NULL; nextIsChild = nextIsChild->nextSiblingPtr) {
+          if (nextIsChild->nextSiblingPtr->pid == Current->pid) {
+            // swap the parents child ptr with the quitting process
+            procPtr oldChild = parent->childProcPtr;
+            procPtr newChild = nextIsChild->nextSiblingPtr;
+            parent->childProcPtr = newChild;
+            nextIsChild->nextSiblingPtr = newChild->nextSiblingPtr;
+            newChild->nextSiblingPtr =oldChild;
+            break;
+          }
+        }  
+      }
+    }
+    // call dispatcher
     dispatcher(2, Current);
 } /* quit */
 
@@ -520,7 +544,7 @@ void dispatcher(int reason, procPtr process)
     enableInterrupts();
     USLOSS_ContextSwitch(NULL, &(nextProcess->state));  
   }
-  else {
+  else {dump_processes();
     if (reason == 0) {
       // fork1 Condition
       if (DEBUG && debugflag)
@@ -573,7 +597,9 @@ void dispatcher(int reason, procPtr process)
       int parentIndex = (Current->ppid) % 50;
       procPtr parent = &(ProcTable[parentIndex]);
     
+      // if parent was joined blocked
       if (parent->status == JOIN_BLOCK) {
+        // set parent back to ready and add it back to the ready list
         parent->status = READY;
         add(parent);
       }
@@ -911,7 +937,7 @@ void dump_processes() {
     for (i = 0; i < MAXPROC; i++) {
         USLOSS_Console("%3d	", ProcTable[i].pid);
         USLOSS_Console("%4d	", ProcTable[i].ppid);
-        USLOSS_Console("%5d	", ProcTable[i].priority);
+        USLOSS_Console("%5d		", ProcTable[i].priority);
 
         if (Current->pid == ProcTable[i].pid) {
             USLOSS_Console("RUNNING		");
@@ -931,10 +957,10 @@ void dump_processes() {
         else if (ProcTable[i].status == ZAP_BLOCK) {
             USLOSS_Console("ZAP_BLOCK	");
         }
-    }
 
-    USLOSS_Console("%3d     ", ProcTable[i].kids);
-    USLOSS_Console("%s", ProcTable[i].name);
+	USLOSS_Console("%3d	", ProcTable[i].kids);
+        USLOSS_Console("%s\n", ProcTable[i].name);
+    }
 }
 
 int blockMe(int new_status) {
