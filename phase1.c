@@ -11,14 +11,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-
 #include "kernel.h"
 #include "usloss.h"
 
 /* ------------------------- Prototypes ----------------------------------- */
 int sentinel (char *);
 extern int start1 (char *);
-void dispatcher(void);
+void dispatcher(int reason, procPtr process);
 void launch();
 static void enableInterrupts();
 void disableInterrupts();
@@ -303,12 +302,12 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
         Current->kids++;
     }
 
-    /* More stuff to do here... */
-    // add child to ready list
-    add(&(ProcTable[procSlot]));
-
+    // call dispatcher 
     if (strcmp("sentinel", name) != 0) {
-      dispatcher();
+      dispatcher(0, &(ProcTable[procSlot]));
+    }
+    else {
+        add(&(ProcTable[procSlot]));
     }
 
     return ProcTable[procSlot].pid;
@@ -413,7 +412,7 @@ int join(int *code)
 
     // Otherwise, No children have quit, block
     Current->status = JOIN_BLOCK;
-    dispatcher();
+    dispatcher(1, NULL);
 
     // will run again when a child has quit, look for child
     return removeChild();
@@ -474,7 +473,7 @@ void quit(int code)
     Current->status = QUIT;
     p1_quit(Current->pid);
 
-    dispatcher();
+    dispatcher(2, Current);
 } /* quit */
 
 
@@ -486,7 +485,7 @@ void quit(int code)
              swapped in.
    Parameters - reason -
                         0 - called from fork1
-                        1 - called from join
+                        1 - called from join/zap
                         2 - called from quit
                         3 - called from clock interrupt
                 process - Will be NULL or Current except for fork1, 
@@ -496,9 +495,14 @@ void quit(int code)
    Side Effects - the context of the machine is changed
    ----------------------------------------------------------------------- */
 void dispatcher(int reason, procPtr process)
-{ 
+{
   // check if current is null
   if (Current == NULL) {
+    // add start1
+    add(process);
+
+    // execute next process on readyList
+    procPtr nextProcess = pop();
     p1_switch(-1, nextProcess->pid);
 
     // change current  to the new process and start its timer
@@ -507,21 +511,20 @@ void dispatcher(int reason, procPtr process)
 
     // context switch
     enableInterrupts();
-    USLOSS_ContextSwitch(NULL, &(nextProcess->state));
+    USLOSS_ContextSwitch(NULL, &(nextProcess->state));  
   }
   else {
     if (reason == 0) {
       // fork1 Condition
       if (DEBUG && debugflag)
-        USLOSS_Console("dispatcher(): called from fork1");
+        USLOSS_Console("dispatcher(): called from fork1\n");
 
       // execute parent or child, whichever has higher priority
       //  if same priority, execute child
-      if (Current->priority > process->priority) {
+      if (Current->priority < process->priority) {
         // Continue to execute parent, put child on readyList
         add(process);
         enableInterrupts();
-        return;
       }
       else {
         // execute child, add parent to readylist
@@ -534,13 +537,13 @@ void dispatcher(int reason, procPtr process)
         Current->startTime = USLOSS_Clock();
 
         enableInterrupts();
-        ContextSwitch(&(old->state), &(Current->state));
+        USLOSS_ContextSwitch(&(old->state), &(Current->state));
       }
     }
     else if (reason == 1) {
       // join Condition
       if (DEBUG && debugflag)
-        USLOSS_Console("dispatcher(): called from join()");
+        USLOSS_Console("dispatcher(): called from join()\n");
 
       // execute next process on readyList
       procPtr nextProcess = pop();
@@ -552,12 +555,12 @@ void dispatcher(int reason, procPtr process)
       Current->startTime = USLOSS_Clock();
 
       enableInterrupts();
-      ContextSwitch(&(old->state), &(Current->state));
+      USLOSS_ContextSwitch(&(old->state), &(Current->state));
     }
     else if (reason == 2) {
       // quit Condition
       if (DEBUG && debugflag)
-        USLOSS_Console("dispatcher(): called from quit()");
+        USLOSS_Console("dispatcher(): called from quit() for process with pid %d\n", Current->pid);
 
       // check to see if the parent is join blocked and add parent back to readylist
       int parentIndex = (Current->ppid) % 50;
@@ -577,7 +580,6 @@ void dispatcher(int reason, procPtr process)
 
         zapi++;
         currProc = Current->zapList[zapi];
-        break;
       }
 
       // begin next process
@@ -590,12 +592,12 @@ void dispatcher(int reason, procPtr process)
       Current->startTime = USLOSS_Clock();
 
       enableInterrupts();
-      ContextSwitch(&(old->state), &(Current->state));
+      USLOSS_ContextSwitch(&(old->state), &(Current->state));
     }
     else if (reason == 3) {
       // clock Condition
       if (DEBUG && debugflag)
-        USLOSS_Console("dispatcher(): called from clock");
+        USLOSS_Console("dispatcher(): called from clock\n");
       
       // Add the incomplete process to the readyList and context switch
       add(Current);
@@ -605,11 +607,11 @@ void dispatcher(int reason, procPtr process)
 
       // change current  to the new process and start its timer
       procPtr old = Current;
-      Current = process;
+      Current = nextProcess;
       Current->startTime = USLOSS_Clock();
 
       enableInterrupts();
-      ContextSwitch(&(old->state), &(Current->state));
+      USLOSS_ContextSwitch(&(old->state), &(Current->state));
     }
   } 
 } /* dispatcher */
@@ -641,12 +643,41 @@ int sentinel (char *dummy)
 /* check to determine if deadlock has occurred... */
 static void checkDeadlock()
 {
-  int i;
+  int numReady; // how many procs are left as ready
+  int numActive; // number of processes still running
+  int i; // loop variable
+
+  // go through the proc table and count processes running and process ready
   for (i = 0; i < 50; i++) {
-    if (ProcTable[i].status == READY)
-      return;
+    if (ProcTable[i].status == READY) {
+      numReady++;
+      numActive++;
+    }
+
+    if (ProcTable[i].status == JOIN_BLOCK || ProcTable[i].status == ZAP_BLOCK) {
+      numActive++;
+    }
   }
-  USLOSS_Halt(1);
+
+  // check for deadlock
+  if (numReady == 1) {
+    // not deadlock, just sentinel left, time to quit
+    if (numActive == 1) {
+      USLOSS_Console("All processes completed.\n");
+      USLOSS_Halt(0);
+    }
+    // deadlock
+    else {
+      if (DEBUG && debugflag)
+        USLOSS_Console("Found deadlock\n");
+
+      USLOSS_Halt(1);
+    }
+  }
+  // lots of people left ready just return
+  else {
+    return;
+  }
 } /* checkDeadlock */
 
 /*
@@ -858,7 +889,7 @@ int zap(int pid)
     zappedProc->zappedWhileBlocked = 1;
   }
 
-  dispatcher();
+  dispatcher(1, NULL);
   return 0;
 }
 
@@ -956,6 +987,6 @@ void timeSlice() {
 
     // if the current has been running for its allowed time slice
     if (dif >= TIMESLICE) {
-        dispatcher();
+        dispatcher(3, NULL);
     }
 }
