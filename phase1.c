@@ -38,7 +38,7 @@ int findProcSlot();
 /* -------------------------- Globals ------------------------------------- */
 
 /* Patrick's debugging global variable... */
-int debugflag = 1;
+int debugflag = 0;
 
 /* the process table */
 procStruct ProcTable[MAXPROC];
@@ -86,6 +86,7 @@ void startup()
         ProcTable[i].stackSize = -1;
         ProcTable[i].status = EMPTY;
         ProcTable[i].startTime = -1;
+        ProcTable[i].cpuTime = -1;
         ProcTable[i].zapped = -1;
         ProcTable[i].zappedWhileBlocked = -1;
         ProcTable[i].kids = 0;
@@ -259,6 +260,7 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     ProcTable[procSlot].stackSize = stacksize;
     ProcTable[procSlot].status = READY;
     ProcTable[procSlot].startTime = 0;
+    ProcTable[procSlot].cpuTime = -1;
     ProcTable[procSlot].zapped = 0;
     ProcTable[procSlot].zappedWhileBlocked = 0;
     ProcTable[procSlot].kids = 0;
@@ -401,6 +403,7 @@ int join(int *code)
         quit->stackSize = -1;
         quit->status = EMPTY;
         quit->startTime = -1;
+        quit->cpuTime = -1;
         quit->zapped = -1;
         quit->zappedWhileBlocked = -1;
         quit->kids = 0;
@@ -457,6 +460,7 @@ int join(int *code)
     quit->stackSize = -1;
     quit->status = EMPTY;
     quit->startTime = -1;
+    quit->cpuTime = -1;
     quit->zapped = -1;
     quit->zappedWhileBlocked = -1;
     quit->kids = 0;
@@ -533,6 +537,7 @@ void quit(int code)
             quit->stackSize = -1;
             quit->status = EMPTY;
             quit->startTime = -1;
+            quit->cpuTime = -1;
             quit->zapped = -1;
             quit->zappedWhileBlocked = -1;
             quit->kids = 0;
@@ -627,8 +632,6 @@ void dispatcher(int reason, procPtr process)
     USLOSS_ContextSwitch(NULL, &(nextProcess->state));  
   }
   else {
-    if (DEBUG && debugflag)
-      dump_processes();
     if (reason == 0) {
       // fork1 Condition
       if (DEBUG && debugflag)
@@ -656,6 +659,9 @@ void dispatcher(int reason, procPtr process)
       }
     }
     else if (reason == 1) {
+      // new process running, inc cpuTime
+      Current->cpuTime += (USLOSS_Clock() - readCurStartTime());
+
       // join Condition
       if (DEBUG && debugflag)
         USLOSS_Console("dispatcher(): called from join()\n");
@@ -698,6 +704,7 @@ void dispatcher(int reason, procPtr process)
         zapi++;
         currProc = Current->zapList[zapi];
       }
+      Current->zapped = 0;
 
       // begin next process
       procPtr nextProcess = pop();
@@ -993,10 +1000,6 @@ int zap(int pid)
   }
 
   int returnValue = 0; // value to be returned by this function
-  // verify the calling proces is not zapped
-  if (Current->zapped) {
-    returnValue = -1;
-  }
 
   // get process to be zapped
   procPtr zappedProc = &ProcTable[pid % 50];
@@ -1008,19 +1011,25 @@ int zap(int pid)
   }
   zappedProc->zapList[index] = Current;
 
-  //Change zapped Boolean value
+  // change zapped Boolean value
   zappedProc->zapped = 1;
 
-  // Zap block calling process
+  // zap block calling process
   Current->status = ZAP_BLOCK;
 
   // zappedWhileBlocked status
   if (zappedProc->status == JOIN_BLOCK || zappedProc->status == ZAP_BLOCK) {
     zappedProc->zappedWhileBlocked = 1;
+  }
+
+  // call dispatcher
+  dispatcher(1, NULL);
+
+  // came back from dispacher, check if zapped again
+  if (Current->zapped) {
     returnValue = -1;
   }
 
-  dispatcher(1, NULL);
   return returnValue;
 }
 
@@ -1029,13 +1038,13 @@ int getpid() {
 }
 
 void dumpProcesses() {
-    USLOSS_Console("PID	Parent	Priority	Status		# Kids	Name\n");
+    USLOSS_Console("PID	Parent	Priority	Status		# Kids	CPUtime	Name\n");
 
     int i;
     for (i = 0; i < MAXPROC; i++) {
-        USLOSS_Console("%3d	", ProcTable[i].pid);
-        USLOSS_Console("%4d	", ProcTable[i].ppid);
-        USLOSS_Console("%5d		", ProcTable[i].priority);
+        USLOSS_Console(" %d	", ProcTable[i].pid);
+        USLOSS_Console("  %d	", ProcTable[i].ppid);
+        USLOSS_Console("   %d		", ProcTable[i].priority);
 
         if (Current->pid == ProcTable[i].pid) {
             USLOSS_Console("RUNNING		");
@@ -1056,8 +1065,13 @@ void dumpProcesses() {
             USLOSS_Console("ZAP_BLOCK	");
         }
 
-	USLOSS_Console("%3d	", ProcTable[i].kids);
-        USLOSS_Console("%s\n", ProcTable[i].name);
+	USLOSS_Console("  %d	", ProcTable[i].kids);
+        USLOSS_Console("   %d", ProcTable[i].cpuTime);
+
+        if (strcmp(ProcTable[i].name, "") != 0) {
+            USLOSS_Console("	%s", ProcTable[i].name);
+        }
+        USLOSS_Console("\n");
     }
 }
 
@@ -1115,9 +1129,10 @@ int readCurStartTime() {
 void timeSlice() {
     // compare times
     int dif = USLOSS_Clock() - readCurStartTime();
-
+    
     // if the current has been running for its allowed time slice
     if (dif >= TIMESLICE) {
+        // call dispatcher
         dispatcher(3, NULL);
     }
 }

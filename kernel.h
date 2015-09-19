@@ -1,5 +1,5 @@
 /* Patrick's DEBUG printing constant... */
-#define DEBUG 0
+#define DEBUG 1
 
 typedef struct procStruct procStruct;
 
@@ -25,6 +25,7 @@ struct procStruct {
    unsigned int    stackSize;
    int             status;            /* READY, BLOCKED, QUIT, etc. */
    int             startTime;
+   int             cpuTime;
    int             zapped;          /* if the process was zapped */
    int             zappedWhileBlocked;/*if the process was zapped while it was blocked */
    int             kids;
