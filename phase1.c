@@ -168,10 +168,14 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     if (DEBUG && debugflag)
         USLOSS_Console("fork1(): creating process %s\n", name);
 
-    disableInterrupts();
-
     /* test if in kernel mode; halt if in user mode */
-    inKernelMode();
+    if ( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
+      //not in kernel mode
+      USLOSS_Console("fork1(): called while in user mode, by process %d. Halting...\n", Current->pid);
+      USLOSS_Halt(1);
+    }
+
+    disableInterrupts();
 
     /* find an empty slot in the process table */
     int procSlot = findProcSlot();
@@ -317,24 +321,6 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
 } /* fork1 */
 
 /* ------------------------------------------------------------------------
-   Name - inKernelMode
-   Purpose - Check if the current mode is Kernel. If not call USLOSS_Halt
-             If the 0th bit of PSR is 1, we are in kernel mode. If not,
-             call USLOSS_Halt
-   Parameters - None
-   Returns - void, but if USLOSS_Halt is called it will not return at all.
-   Side Effects - Could end program if not in kernel mode, else, does nothing
-   ------------------------------------------------------------------------ */
-void inKernelMode()
-{
-  if ( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
-    //not in kernel mode
-    USLOSS_Console("Kernel Error: Not in kernel mode");
-    USLOSS_Halt(1);
-  }
-} /* inKernelMode */
-
-/* ------------------------------------------------------------------------
    Name - launch
    Purpose - Dummy function to enable interrupts and launch a given process
              upon startup.
@@ -385,7 +371,7 @@ int join(int *code)
 
     // make sure current process isn't zapped by another process
     if (isZapped()) {
-      return -1;
+        return -1;
     }
 
     // check if current has children that have already quit
@@ -404,6 +390,7 @@ int join(int *code)
         quit->nextProcPtr = NULL;
         quit->childProcPtr = NULL;
         quit->nextSiblingPtr = NULL;
+        quit->quitChildPtr = NULL;
         strcpy(quit->name, "");
         quit->startArg[0] = '\0';
         quit->pid = -1;
@@ -432,7 +419,19 @@ int join(int *code)
     Current->status = JOIN_BLOCK;
     dispatcher(1, NULL);
 
-    // when it comes back, check again for quit children
+    // join comes back after being blocked here, check everything again
+    disableInterrupts();
+
+    // make sure current process has children at all
+    if (Current->childProcPtr == NULL && Current->quitChildPtr == NULL) {
+        return -2;
+    }
+
+    // make sure current process isn't zapped by another process
+    if (isZapped()) {
+        return -1;
+    }
+
     // get the first child to have quit
     procPtr quit = Current->quitChildPtr;
 
@@ -447,6 +446,7 @@ int join(int *code)
     quit->nextProcPtr = NULL;
     quit->childProcPtr = NULL;
     quit->nextSiblingPtr = NULL;
+    quit->quitChildPtr = NULL;
     strcpy(quit->name, "");
     quit->startArg[0] = '\0';
     quit->pid = -1;
@@ -482,10 +482,18 @@ int join(int *code)
    ------------------------------------------------------------------------ */
 void quit(int code)
 {
+    /* test if in kernel mode; halt if in user mode */
+    if ( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
+      //not in kernel mode
+      USLOSS_Console("quit(): called while in user mode, by process %d. Halting...\n", Current->pid);
+      USLOSS_Halt(1);
+    }
+
     disableInterrupts();
 
     // check to make sure current doesn't have children
     if (Current->childProcPtr != NULL) {
+        USLOSS_Console("quit(): process %d quit with active children. Halting...\n", Current->pid);
         USLOSS_Halt(1);
     }
 
@@ -752,41 +760,40 @@ int sentinel (char *dummy)
 /* check to determine if deadlock has occurred... */
 static void checkDeadlock()
 {
-  int numReady = 0; // how many procs are left as ready
-  int numActive = 0; // number of processes still running
-  int i; // loop variable
+    int numReady = 0; // how many procs are left as ready
+    int numActive = 0; // number of processes still running
+    int i; // loop variable
 
-  // go through the proc table and count processes running and process ready
-  for (i = 0; i < 50; i++) {
-    if (ProcTable[i].status == READY) {
-      numReady++;
-      numActive++;
+    // go through the proc table and count processes running and process ready
+    for (i = 0; i < MAXPROC; i++) {
+        if (ProcTable[i].status == READY) {
+            numReady++;
+            numActive++;
+        }
+
+        if (ProcTable[i].status == JOIN_BLOCK || ProcTable[i].status == ZAP_BLOCK) {
+            numActive++;
+        }
     }
 
-    if (ProcTable[i].status == JOIN_BLOCK || ProcTable[i].status == ZAP_BLOCK) {
-      numActive++;
+    // check for deadlock
+    if (numReady == 1) {
+        // not deadlock, just sentinel left, time to quit
+        if (numActive == 1) {
+            USLOSS_Console("All processes completed.\n");
+            USLOSS_Halt(0);
+        }
+        // deadlock
+        else {
+            USLOSS_Console("checkDeadlock(): numProc = %d\n", numActive);
+            USLOSS_Console("checkDeadlock(): processes still present. Halting...\n");
+            USLOSS_Halt(1);
+        }
     }
-  }
-
-  // check for deadlock
-  if (numReady == 1) {
-    // not deadlock, just sentinel left, time to quit
-    if (numActive == 1) {
-      USLOSS_Console("All processes completed.\n");
-      USLOSS_Halt(0);
-    }
-    // deadlock
+    // lots of people left ready just return
     else {
-      if (DEBUG && debugflag)
-        USLOSS_Console("Found deadlock\n");
-
-      USLOSS_Halt(1);
+        return;
     }
-  }
-  // lots of people left ready just return
-  else {
-    return;
-  }
 } /* checkDeadlock */
 
 /*
@@ -973,12 +980,26 @@ int isZapped() {
    ----------------------------------------------------------------------- */
 int zap(int pid)
 {
-  // verify the calling proces is not zapped
-  if (Current->zapped) {
-    return -1;
+  // check if zapping itself
+  if (Current->pid == pid) {
+    USLOSS_Console("zap(): process %d tried to zap itself.  Halting...\n", Current->pid);
+    USLOSS_Halt(1);
   }
 
-  procPtr zappedProc = &ProcTable[pid];
+  // check if zapping non existant process
+  if (ProcTable[pid % 50].status == EMPTY) {
+    USLOSS_Console("zap(): process %d tried to zap non existant process.  Halting...\n", Current->pid);
+    USLOSS_Halt(1);
+  }
+
+  int returnValue = 0; // value to be returned by this function
+  // verify the calling proces is not zapped
+  if (Current->zapped) {
+    returnValue = -1;
+  }
+
+  // get process to be zapped
+  procPtr zappedProc = &ProcTable[pid % 50];
 
   // Add calling process to zappedProc's zapList
   int index = 0;
@@ -996,10 +1017,11 @@ int zap(int pid)
   // zappedWhileBlocked status
   if (zappedProc->status == JOIN_BLOCK || zappedProc->status == ZAP_BLOCK) {
     zappedProc->zappedWhileBlocked = 1;
+    returnValue = -1;
   }
 
   dispatcher(1, NULL);
-  return 0;
+  return returnValue;
 }
 
 int getpid() {
