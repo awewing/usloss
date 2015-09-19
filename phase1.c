@@ -430,6 +430,14 @@ void quit(int code)
         USLOSS_Halt(1);
     }
 
+    // if no parent (start1) return
+    if (strcmp(Current->name, "start1")) {
+      if (DEBUG && debugflag)
+        USLOSS_Console("start1 is quitting\n");
+      dispatcher(2, NULL);
+      return;
+    }
+
     // set the current's status to quit
     Current->status = QUIT;
     p1_quit(Current->pid);
@@ -474,6 +482,8 @@ void quit(int code)
     }
 
     // call dispatcher
+    if (DEBUG && debugflag)
+      USLOSS_Console("quit() calling dispatcher\n");
     dispatcher(2, Current);
 } /* quit */
 
