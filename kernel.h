@@ -1,9 +1,13 @@
 /* Patrick's DEBUG printing constant... */
-#define DEBUG 1
+#define DEBUG 0
 
 typedef struct procStruct procStruct;
 
 typedef struct procStruct * procPtr;
+
+typedef struct quitNode quitNode;
+
+typedef struct quitNode * quitNodePtr;
 
 struct procStruct {
    procPtr         nextProcPtr;       /* readyList next */
@@ -24,7 +28,7 @@ struct procStruct {
    int             zappedWhileBlocked;/*if the process was zapped while it was blocked */
    int             kids;
    procPtr         zapList[MAXPROC];
-   int             quitStatus;         /* used to comunicate between quit child and parent*/
+   quitNodePtr     quitList;         /* used to comunicate between quit child and parent*/
    /* other fields as needed... */
 };
 
@@ -39,6 +43,12 @@ struct psrBits {
 union psr_values {
    struct psrBits bits;
    unsigned int integerPart;
+};
+
+struct quitNode {
+   quitNodePtr     nextNode;
+   int             quitCode;
+   short           pid;
 };
 
 /* Some useful constants.  Add more as needed... */

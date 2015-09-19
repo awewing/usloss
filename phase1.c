@@ -89,6 +89,8 @@ void startup()
         ProcTable[i].zapped = -1;
         ProcTable[i].zappedWhileBlocked = -1;
         ProcTable[i].kids = -1;
+        ProcTable[i].quitList = NULL;
+
 
         int j;
         for (j = 0; j < MAXPROC; j++) {
@@ -382,89 +384,24 @@ int join(int *code)
         return -2;
     }
 
-    // Iteratively search for a child that has quit and return its pid
-    procPtr currProc = Current->childProcPtr;
-
-    // check if its direct child has quit, if so swap that child and its next sibling and
-    // return its pid
-    if (currProc->status == QUIT) {
-        short returnPid = currProc->pid;
-        Current->childProcPtr = currProc->nextSiblingPtr;
-        
-        Current->kids--;
-        return returnPid;
+    // Make sure current process isn't zapped by another process
+    if (isZapped()) {
+      return -1;
     }
 
-    // otherwise go through the siblings
-    while (currProc->nextSiblingPtr != NULL) {
-        if (currProc->nextSiblingPtr->status == QUIT) {
-            short returnPid = currProc->nextSiblingPtr->pid;
-            currProc->nextSiblingPtr = currProc->nextSiblingPtr->nextSiblingPtr;
-            
-            Current->kids--;
-            return returnPid;
-        } else {
-            currProc = currProc->nextSiblingPtr;
-        }
-    }
-    short quitChild = removeChild();
-
-    if (quitChild != -1) 
-      return quitChild;
-
-    // Otherwise, No children have quit, block
-    Current->status = JOIN_BLOCK;
-    dispatcher(1, NULL);
-
-    // will run again when a child has quit, look for child
-    procPtr child = Current->childProcPtr;
-    procPtr prev = Current->childProcPtr;
-    if (child->nextSiblingPtr == NULL) {
-      // remove this child
-      Current->childProcPtr = NULL;
-
-    }
-    else {
-      while (child->nextSiblingPtr != NULL || child->nextSiblingPtr->status == QUIT) {
-        
-        USLOSS_Console("\tjoin() while: prev = %d\n", prev->pid);
-        USLOSS_Console("\tjoin() while: child = %d\n", child->pid);
-        prev = child;
-        child = child->nextSiblingPtr;
-      }
-
-      USLOSS_Console("join() final: prev = %d\n", prev->pid);
-      USLOSS_Console("join() final: child = %d\n", child->pid);
-      // remove this child->nextSibling;
-      prev->nextSiblingPtr = child->nextSiblingPtr;
+    // If no child has quit, join block call dispatcher
+    if (Current->quitList) {
+      Current->status = JOIN_BLOCK;
+      dispatcher(1, NULL);
     }
 
+    // At this point, a child is gauranteed to have quit
+    int childID = (int) Current->quitList->pid;
+    *code = Current->quitList->quitCode;
 
+    // remove node from quitList
+    Current->quitList = Current->quitList->nextNode;
 
-
-        // for (nextIsChild = parent->childProcPtr; nextIsChild->nextSiblingPtr != NULL; nextIsChild = nextIsChild->nextSiblingPtr) {
-        //   if (nextIsChild->nextSiblingPtr->pid == Current->pid) {
-        //     // swap the parents child ptr with the quitting process
-        //     procPtr oldChild = parent->childProcPtr;
-        //     procPtr newChild = nextIsChild->nextSiblingPtr;
-        //     parent->childProcPtr = newChild;
-        //     nextIsChild->nextSiblingPtr = newChild->nextSiblingPtr;
-        //     newChild->nextSiblingPtr = oldChild;
-        //     break;
-        //   }
-        // }  
-    
-
-
-
-
-
-
-
-    int childID = (int) child->pid;
-    child = &(ProcTable[childID % 50]);
-
-    *code = child->quitStatus;
     return childID;
 } /* join */
 
@@ -519,36 +456,42 @@ void quit(int code)
         USLOSS_Halt(1);
     }
 
-    // set quitStatus
-    Current->quitStatus = code;
+    // Add child to Parent quit list (initialized to parent process)
+    // Initialize new quit child node
+    quitNode quitChild;
+    quitChild.nextNode = NULL;
+    quitChild.quitCode = code;
+    quitChild.pid = Current->pid;
+
+    procPtr parent = &(ProcTable[Current->ppid % 50]);
+
+    if (parent->quitList == NULL) {
+      parent->quitList = &quitChild;
+    }
+    else {
+      quitNodePtr currProc = parent->quitList;
+      while (currProc->nextNode != NULL) {
+        currProc = currProc->nextNode;
+      }
+      currProc->nextNode = &quitChild;
+    }
 
     // set the current's status to quit
     Current->status = QUIT;
     p1_quit(Current->pid);
 
-    // if the quitting process has a parent, make it the first child of the parent
-    if (Current->ppid != NOPARENT) {
-      // find the parent
-      procPtr parent = &ProcTable[Current->ppid % 50];
-
-      // find the child in the proc
-      procPtr nextIsChild;
-
-      // if quit child isn't already the first child
-      if (parent->childProcPtr->pid != Current->pid) {
-        for (nextIsChild = parent->childProcPtr; nextIsChild->nextSiblingPtr != NULL; nextIsChild = nextIsChild->nextSiblingPtr) {
-          if (nextIsChild->nextSiblingPtr->pid == Current->pid) {
-            // swap the parents child ptr with the quitting process
-            procPtr oldChild = parent->childProcPtr;
-            procPtr newChild = nextIsChild->nextSiblingPtr;
-            parent->childProcPtr = newChild;
-            nextIsChild->nextSiblingPtr = newChild->nextSiblingPtr;
-            newChild->nextSiblingPtr = oldChild;
-            break;
-          }
-        }  
-      }
+    // remove child from parents list of active children
+    procPtr currPtr = parent->childProcPtr;
+    if (currPtr->pid == Current->pid) {
+      parent->childProcPtr = Current->nextSiblingPtr;
     }
+    else {
+      while (currPtr->nextSiblingPtr->pid != Current->pid) {
+        currPtr = currPtr->nextSiblingPtr;
+      }
+      currPtr->nextSiblingPtr = Current->nextSiblingPtr;
+    }
+
     // call dispatcher
     dispatcher(2, Current);
 } /* quit */
