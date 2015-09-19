@@ -441,6 +441,9 @@ void quit(int code)
     quitChild.pid = Current->pid;
 
     procPtr parent = &(ProcTable[Current->ppid % 50]);
+    if (DEBUG && debugflag)
+        USLOSS_Console("quit(): parent ID = %d and ppid %50 = %d and current->ppid = %d\n",
+	    parent->pid, parent->pid % 50, Current->ppid);
 
     if (parent->quitList == NULL) {
       if (DEBUG && debugflag)
@@ -468,6 +471,9 @@ void quit(int code)
       }
       currPtr->nextSiblingPtr = Current->nextSiblingPtr;
     }
+
+    // put parent back on readyList
+    parent->status = READY;
 
     // call dispatcher
     dispatcher(2, Current);
