@@ -88,7 +88,6 @@ void startup()
         ProcTable[i].startTime = -1;
         ProcTable[i].cpuTime = -1;
         ProcTable[i].zapped = -1;
-        ProcTable[i].zappedWhileBlocked = -1;
         ProcTable[i].kids = 0;
         ProcTable[i].quitCode = -1;
 
@@ -262,7 +261,6 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     ProcTable[procSlot].startTime = 0;
     ProcTable[procSlot].cpuTime = -1;
     ProcTable[procSlot].zapped = 0;
-    ProcTable[procSlot].zappedWhileBlocked = 0;
     ProcTable[procSlot].kids = 0;
 
     // inc nextPid
@@ -405,7 +403,6 @@ int join(int *code)
         quit->startTime = -1;
         quit->cpuTime = -1;
         quit->zapped = -1;
-        quit->zappedWhileBlocked = -1;
         quit->kids = 0;
         quit->quitCode = -1;
 
@@ -462,7 +459,6 @@ int join(int *code)
     quit->startTime = -1;
     quit->cpuTime = -1;
     quit->zapped = -1;
-    quit->zappedWhileBlocked = -1;
     quit->kids = 0;
     quit->quitCode = -1;
 
@@ -539,7 +535,6 @@ void quit(int code)
             quit->startTime = -1;
             quit->cpuTime = -1;
             quit->zapped = -1;
-            quit->zappedWhileBlocked = -1;
             quit->kids = 0;
             quit->quitCode = -1;
 
@@ -1017,11 +1012,6 @@ int zap(int pid)
   // zap block calling process
   Current->status = ZAP_BLOCK;
 
-  // zappedWhileBlocked status
-  if (zappedProc->status == JOIN_BLOCK || zappedProc->status == ZAP_BLOCK) {
-    zappedProc->zappedWhileBlocked = 1;
-  }
-
   // call dispatcher
   dispatcher(1, NULL);
 
@@ -1064,6 +1054,9 @@ void dumpProcesses() {
         else if (ProcTable[i].status == ZAP_BLOCK) {
             USLOSS_Console("ZAP_BLOCK	");
         }
+        else {
+            USLOSS_Console("%d		", ProcTable[i].status);
+        }
 
 	USLOSS_Console("  %d	", ProcTable[i].kids);
         USLOSS_Console("   %d", ProcTable[i].cpuTime);
@@ -1077,10 +1070,6 @@ void dumpProcesses() {
 
 int blockMe(int new_status) {
     // check to see if it this function is allowed to be called
-    if (Current->zappedWhileBlocked != 0) {
-        return -1;
-    }
-
     if (new_status < 10) {
         USLOSS_Console("new_status must be greater than or equal to 10.\n");
         USLOSS_Halt(1);
@@ -1088,6 +1077,15 @@ int blockMe(int new_status) {
 
     // it is allowed to be blocked, change stus and return
     Current->status = new_status;
+   
+    // call dispatcher 
+    dispatcher(1, NULL);
+
+    // check if zaped
+    if (Current->zapped) {
+        return -1;
+    }
+
     return 0;
 }
 
@@ -1096,29 +1094,33 @@ int unblockProc(int pid) {
     procPtr proc = &ProcTable[pid % 50];
 
     // check to see if it is allowed to unblock
+    // current is unblock
     if (Current->pid == pid) {
         return -2;
     }
 
+    // unblocking something that doesn't exist
     if (proc->status == EMPTY) {
         return -2;
     }
 
-    if (proc->status != JOIN_BLOCK && proc->status != ZAP_BLOCK) {
+    // not blocked on join or zap
+    if (proc->status <= 10) {
         return -2;
-    }
-
-    if (proc->status >= 10) {
-        return -2;
-    }
-
-    if (Current->zapped != 0) {
-        return -1;
     }
 
     // the process can be unblocked so unblock it
     proc->status = READY;
     add(proc);
+
+    // call dispatcher 
+    dispatcher(1, NULL);
+
+    // check if zapped
+    if (Current->zapped) {
+        return -1;
+    }
+
     return 0;
 }
 

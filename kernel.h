@@ -27,7 +27,6 @@ struct procStruct {
    int             startTime;
    int             cpuTime;
    int             zapped;          /* if the process was zapped */
-   int             zappedWhileBlocked;/*if the process was zapped while it was blocked */
    int             kids;
    procPtr         zapList[MAXPROC];
    int             quitCode;
