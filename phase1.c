@@ -35,7 +35,6 @@ void timeSlice();
 void add(procPtr proc);
 procPtr pop();
 int findProcSlot();
-short removeChild(void);
 /* -------------------------- Globals ------------------------------------- */
 
 /* Patrick's debugging global variable... */
@@ -391,11 +390,20 @@ int join(int *code)
 
     // If no child has quit, join block call dispatcher
     if (Current->quitList == NULL) {
+      if (DEBUG && debugflag) 
+        USLOSS_Console("join(): Join blocking\n");        
       Current->status = JOIN_BLOCK;
       dispatcher(1, NULL);
     }
 
     // At this point, a child is gauranteed to have quit
+    if (DEBUG && debugflag) 
+      USLOSS_Console("join(): Child should have quit\n");
+
+    if (DEBUG && debugflag && Current->quitList == NULL) 
+      USLOSS_Console("join(): Child SHOULD BE HERE\n");
+
+
     int childID = (int) Current->quitList->pid;
     *code = Current->quitList->quitCode;
 
@@ -404,41 +412,6 @@ int join(int *code)
 
     return childID;
 } /* join */
-
-/* ------------------------------------------------------------------------
-   Name - removeChild
-   Purpose - Helper function for join()
-             remove a child that has quit and return its pid
-   Parameters - none
-   Returns - pid of the quit process
-             or -1 if no child has quit
-   Side Effects - removes the child from the parents linked list of children
------------------------------------------------------------------------- */
-short removeChild(void) {
-  procPtr currProc = Current->childProcPtr;
-
-  // check if its direct child has quit, if so swap that child and its next sibling and
-  // return its pid
-  if (currProc->status == QUIT) {
-    short returnPid = currProc->pid;
-    Current->childProcPtr = currProc->nextSiblingPtr;
-    return returnPid;
-  }
-  
-  // otherwise go through the siblings
-  while (currProc->nextSiblingPtr != NULL) {
-    if (currProc->nextSiblingPtr->status == QUIT) {
-      short returnPid = currProc->nextSiblingPtr->pid;
-      currProc->nextSiblingPtr = currProc->nextSiblingPtr->nextSiblingPtr;
-      return returnPid;
-    } else {
-      currProc = currProc->nextSiblingPtr;
-    }
-  }
-
-  // no child quit, return -1
-  return -1;
-}
 
 /* ------------------------------------------------------------------------
    Name - quit
@@ -456,6 +429,10 @@ void quit(int code)
         USLOSS_Halt(1);
     }
 
+    // set the current's status to quit
+    Current->status = QUIT;
+    p1_quit(Current->pid);
+
     // Add child to Parent quit list (initialized to parent process)
     // Initialize new quit child node
     quitNode quitChild;
@@ -466,7 +443,11 @@ void quit(int code)
     procPtr parent = &(ProcTable[Current->ppid % 50]);
 
     if (parent->quitList == NULL) {
+      if (DEBUG && debugflag)
+        USLOSS_Console("quit(): quit list is empty, adding quit child to it\n");
       parent->quitList = &quitChild;
+      if (DEBUG && debugflag) 
+        USLOSS_Console("quit(): pid that was added: %d\n", parent->quitList->pid);
     }
     else {
       quitNodePtr currProc = parent->quitList;
@@ -475,10 +456,6 @@ void quit(int code)
       }
       currProc->nextNode = &quitChild;
     }
-
-    // set the current's status to quit
-    Current->status = QUIT;
-    p1_quit(Current->pid);
 
     // remove child from parents list of active children
     procPtr currPtr = parent->childProcPtr;
