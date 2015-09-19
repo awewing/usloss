@@ -390,7 +390,7 @@ int join(int *code)
     }
 
     // If no child has quit, join block call dispatcher
-    if (Current->quitList) {
+    if (Current->quitList == NULL) {
       Current->status = JOIN_BLOCK;
       dispatcher(1, NULL);
     }
