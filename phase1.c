@@ -389,10 +389,10 @@ int join(int *code)
     }
 
     // If no child has quit, join block call dispatcher
-    if (Current->quitList == NULL) {
-      if (DEBUG && debugflag) 
-        USLOSS_Console("join(): Join blocking\n");        
+    if (Current->quitList == NULL) {        
       Current->status = JOIN_BLOCK;
+      if (DEBUG && debugflag) 
+        USLOSS_Console("join(): Join blocking: %d\n", Current->status);
       dispatcher(1, NULL);
     }
 
@@ -424,6 +424,7 @@ int join(int *code)
    ------------------------------------------------------------------------ */
 void quit(int code)
 {
+    disableInterrupts();
     // check to make sure current doesn't have children
     if (Current->childProcPtr != NULL) {
         USLOSS_Halt(1);
@@ -442,8 +443,8 @@ void quit(int code)
 
     procPtr parent = &(ProcTable[Current->ppid % 50]);
     if (DEBUG && debugflag)
-        USLOSS_Console("quit(): parent ID = %d and ppid %50 = %d and current->ppid = %d\n",
-	    parent->pid, parent->pid % 50, Current->ppid);
+        USLOSS_Console("quit(): %s ID = %d and ppid %50 = %d and current->ppid = %d\n",
+	    Current->name, parent->pid, parent->pid % 50, Current->ppid);
 
     if (parent->quitList == NULL) {
       if (DEBUG && debugflag)
@@ -471,9 +472,6 @@ void quit(int code)
       }
       currPtr->nextSiblingPtr = Current->nextSiblingPtr;
     }
-
-    // put parent back on readyList
-    parent->status = READY;
 
     // call dispatcher
     dispatcher(2, Current);
