@@ -284,7 +284,7 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
         ProcTable[procSlot].ppid = NOPARENT;
     }
     else {
-        // set current to your parent this doesn't work, not sure why
+        // set current to your parent
         ProcTable[procSlot].ppid = Current->pid;
 
         // check if Current already has a child, if not set this fork as the child
@@ -297,7 +297,7 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
             // start at the first child and look until a siblingptr is null
             procPtr child;
             for (child = Current->childProcPtr; child->nextSiblingPtr != NULL; child = child->nextSiblingPtr) {
-              break;
+                ;
             }
 
             child->nextSiblingPtr = &ProcTable[procSlot];
@@ -307,6 +307,17 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     // inc kids
     if (Current != NULL) {
         Current->kids++;
+
+        if (DEBUG && debugflag)
+            USLOSS_Console("fork1(): %d created process %d\n", Current->pid, ProcTable[procSlot].pid);
+
+        if (DEBUG && debugflag){
+            USLOSS_Console("====================================================Parent: %d\n", Current->pid);
+            procPtr test;
+            for (test = Current->childProcPtr; test != NULL; test = test->nextSiblingPtr) {
+                USLOSS_Console("=============================================child: %d\n", test->pid);
+            }
+        }
     }
 
     // call dispatcher 
@@ -316,6 +327,7 @@ int fork1(char *name, int (*procCode)(char *), char *arg,
     else {
         add(&(ProcTable[procSlot]));
     }
+
 
     return ProcTable[procSlot].pid;
 } /* fork1 */
@@ -482,6 +494,9 @@ int join(int *code)
    ------------------------------------------------------------------------ */
 void quit(int code)
 {
+    if (DEBUG && debugflag)
+        USLOSS_Console("quit(): Process %d called quit\n", Current->pid);
+
     /* test if in kernel mode; halt if in user mode */
     if ( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
       //not in kernel mode
@@ -552,20 +567,27 @@ void quit(int code)
     if (hasParent) {
         // get the parent
         procPtr parent = &ProcTable[Current->ppid % 50];
-
+if (DEBUG && debugflag){
+    USLOSS_Console("====================================================Parent: %d\n", parent->pid);
+    procPtr test;
+    for (test = parent->childProcPtr; test != NULL; test = test->nextSiblingPtr) {
+         USLOSS_Console("=============================================child: %d\n", test->pid);
+    }
+}
         // add current to end of the parent's quit list
         procPtr nextFree;
         for (nextFree = parent; nextFree->quitChildPtr != NULL; nextFree = nextFree->quitChildPtr) {
             ;
         }
         nextFree->quitChildPtr = Current;
-
+        
         // remove current from active child list
         // check if current is the immediate child its parent
         if (parent->childProcPtr->pid == Current->pid) {
             // swap parent's child ptr for currents sibling
-            parent->childProcPtr = Current->nextSiblingPtr;
-            Current->nextSiblingPtr = NULL;
+            procPtr temp = Current->nextSiblingPtr;
+            parent->childProcPtr = temp;
+            //Current->nextSiblingPtr = NULL;
         }
         // otherwise look at the first child's sibling's
         else {
@@ -1069,6 +1091,9 @@ void dumpProcesses() {
 }
 
 int blockMe(int new_status) {
+    if (DEBUG && debugflag)
+        USLOSS_Console("blockme(): %d\n", Current->pid);
+
     // check to see if it this function is allowed to be called
     if (new_status < 10) {
         USLOSS_Console("new_status must be greater than or equal to 10.\n");
@@ -1090,6 +1115,9 @@ int blockMe(int new_status) {
 }
 
 int unblockProc(int pid) {
+    if (DEBUG && debugflag)
+        USLOSS_Console("unblock proc(): process %d called unblock on process %d\n", Current->pid, pid);
+
     // get the actual process from the pid
     procPtr proc = &ProcTable[pid % 50];
 
@@ -1111,10 +1139,10 @@ int unblockProc(int pid) {
 
     // the process can be unblocked so unblock it
     proc->status = READY;
-    add(proc);
+//    add(proc);
 
     // call dispatcher 
-    dispatcher(1, NULL);
+    dispatcher(0, proc);
 
     // check if zapped
     if (Current->zapped) {
