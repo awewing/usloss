@@ -1,54 +1,49 @@
-/* this test is a variation of test case 2 */
+/*
+ * Sem Free + Max Sem Create test.
+ */
 
-#include <stdio.h>
-#include <usloss.h>
 #include <phase1.h>
+#include <phase2.h>
+#include <phase3.h>
+#include <usloss.h>
+#include <usyscall.h>
+#include <libuser.h>
+#include <stdio.h>
 
-int XXp1(char *), XXp2(char *);
-char buf[256];
-
-int start1(char *arg)
+int start3(char *arg)
 {
-  int status, pid1, kid_pid;
+   int semaphore[MAXSEMS+1];
+   int sem_result;
+   int i;
 
-  printf("start1(): started\n");
-  pid1 = fork1("XXp1", XXp1, "XXp1", USLOSS_MIN_STACK, 3);
-  printf("start1(): after fork of child %d\n", pid1);
-  printf("start1(): performing join\n");
-  kid_pid = join(&status);
-  sprintf(buf,"start1(): exit status for child %d is %d\n", kid_pid, status); 
-  printf("%s", buf);
-  return 0;
-}
+   printf("start3(): started.  Calling SemCreate\n");
+   for (i = 0; i < MAXSEMS; i++) {
+      sem_result = SemCreate(0, &semaphore[i]);
+      if (sem_result == -1)
+         printf("start3(): i = %3d, sem_result = %2d\n", i, sem_result);
+   }
 
-int XXp1(char *arg)
-{
-  int kid_pid;
-  int status;
+   sem_result = SemCreate(0, &semaphore[MAXSEMS]);
 
-  printf("XXp1(): started\n");
-  printf("XXp1(): arg = `%s'\n", arg);
-  printf("XXp1(): executing fork of first child\n");
-  kid_pid = fork1("XXp2", XXp2, "XXp2", USLOSS_MIN_STACK, 5);
-  printf("XXp1(): fork1 of first child returned pid = %d\n", kid_pid);
-  printf("XXp1(): executing fork of second child\n");
-  kid_pid = fork1("XXp2", XXp2, "XXp2", USLOSS_MIN_STACK, 5);
-  printf("XXp1(): fork1 of second child returned pid = %d\n", kid_pid);
-  kid_pid = join(&status);
-  printf("XXp1(): first join returned kid_pid = %d, status = %d\n",
-          kid_pid, status);
-  kid_pid = join(&status);
-  printf("XXp1(): second join returned kid_pid = %d, status = %d\n",
-          kid_pid, status);
-  quit(-3);
-  return 0;
-}
+   if (sem_result != -1)
+      printf("start3(): ERROR: sem_result should have been -1, but was not\n");
 
-int XXp2(char *arg)
-{
-  printf("XXp2(): started\n");
-  printf("XXp2(): arg = `%s'\n", arg);
-  quit(5);
-  return 0;
-}
+   printf("start3(): freeing one semaphore\n");
+   sem_result = SemFree(semaphore[105]);
 
+   if (sem_result != 0)
+      printf("start3(): ERROR: SemFree should have returned -1, but did not\n");
+
+   sem_result = SemCreate(0, &semaphore[MAXSEMS]);
+
+   if (sem_result == 0)
+      printf("start3(): Correct result from last call to SemCreate()\n");
+   else {
+      printf("start3(): ERROR: last call to SemCreate should have ");
+      printf("returned 0, but did not\n");
+   }
+   
+   Terminate(8);
+
+   return 0;
+} /* start3 */

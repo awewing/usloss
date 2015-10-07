@@ -1,0 +1,25 @@
+start1(): started
+XXp2(): 0 zapping XXp3
+XXp2(): 1 zapping XXp3
+XXp2(): 2 zapping XXp3
+XXp2(): 3 zapping XXp3
+XXp2(): 4 zapping XXp3
+XXp2(): 5 zapping XXp3
+XXp2(): 6 zapping XXp3
+XXp2(): 7 zapping XXp3
+XXp2(): 8 zapping XXp3
+XXp2(): 9 zapping XXp3
+XXp3(): started
+XXp3(): count=10
+XXp2(): 0 after zap
+XXp2(): 1 after zap
+XXp2(): 2 after zap
+XXp2(): 3 after zap
+XXp2(): 4 after zap
+XXp2(): 5 after zap
+XXp2(): 6 after zap
+XXp2(): 7 after zap
+XXp2(): 8 after zap
+XXp2(): 9 after zap
+start1(): calling quit
+All processes completed.

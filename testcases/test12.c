@@ -1,36 +1,55 @@
-/* This test case checks whether quit checks for mode being == kernel */ 
+/*
+ * Three process test of GetTimeofDay and CPUTime.
+ */
 
-#include <stdio.h>
-#include <usloss.h>
 #include <phase1.h>
+#include <phase2.h>
+#include <usloss.h>
+#include <usyscall.h>
+#include <libuser.h>
+#include <stdio.h>
 
-int XXp1(char *);
-char buf[256];
+int Child1(char *);
 
-int start1(char *arg)
+int semaphore;
+
+int start3(char *arg)
 {
-  int status, pid1, kidpid;
-  printf("start1(): started\n");
+   int pid, status;
 
-  pid1 = fork1("XXp1", XXp1, "XXp1", USLOSS_MIN_STACK, 3);
-  printf("start1(): after fork of child %d\n", pid1);
-  printf("start1(): performing join\n");
-  kidpid = join(&status);
-  sprintf(buf,"start1(): exit status for child %d is %d\n", kidpid, status); 
-  printf("%s", buf);
-  quit(0);
-  return 0; /* so gcc will not complain about its absence... */
-}
+   printf("start3(): started\n");
 
-int XXp1(char *arg)
+   printf("start3(): calling Spawn for Child1a\n");
+   Spawn("Child1a", Child1, "Child1a", USLOSS_MIN_STACK, 1, &pid);
+   printf("start3(): calling Spawn for Child1b\n");
+   Spawn("Child1b", Child1, "Child1b", USLOSS_MIN_STACK, 1, &pid);
+   printf("start3(): calling Spawn for Child1c\n");
+   Spawn("Child1c", Child1, "Child1c", USLOSS_MIN_STACK, 1, &pid);
+   printf("start3(): calling Spawn for Child2\n");
+   Wait(&pid, &status);
+   Wait(&pid, &status);
+   Wait(&pid, &status);
+   printf("start3(): Parent done. Calling Terminate.\n");
+   Terminate(8);
+
+   return 0;
+} /* start3 */
+
+
+int Child1(char *my_name) 
 {
-  int i;
+   int i, j, temp, time;
 
-  printf("XXp1(): started\n");
-  printf("XXp1(): arg = `%s'\n", arg);
-  for(i = 0; i < 100; i++)
-    ;
-  USLOSS_PsrSet( USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_MODE );
-  quit(-3);
-  return 0;
-}
+   printf("%s(): starting\n", my_name);
+   for (j = 0; j < 3; j++) {
+      for (i = 0; i < 1000; i++)
+         temp = 2 + temp;
+      GetTimeofDay(&time);
+      printf("%s(): current time of day = %d\n", my_name, time);
+      CPUTime(&time);
+      printf("%s(): current CPU time = %d\n", my_name, time);
+   }
+   printf("%s(): done\n", my_name);
+
+   return 9;
+} /* Child1 */

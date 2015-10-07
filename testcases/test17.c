@@ -1,56 +1,71 @@
-/*
- * Check that getpid() functions correctly.
- */
+/* basic terminate test */
 
-#include <stdio.h>
 #include <usloss.h>
 #include <phase1.h>
+#include <phase2.h>
+#include <usyscall.h>
+#include <libuser.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#define FLAG1 -2
+int Child1(char *);
+int Child2(char *);
 
-int XXp1(char *), XXp2(char *), XXp3(char *), XXp4(char *);
-int pidlist[5];
+int sem1;
 
-int start1(char *arg)
+int start3(char *arg)
 {
-	int ret1, ret2, ret3;
-	int status;
+    int pid;
+    int status;
 
-	pidlist[0] = fork1("XXp1", XXp1, NULL, USLOSS_MIN_STACK, 2);
-	pidlist[1] = fork1("XXp1", XXp1, NULL, USLOSS_MIN_STACK, 3);
-	pidlist[2] = fork1("XXp1", XXp1, NULL, USLOSS_MIN_STACK, 4);
-
-	ret1 = join(&status);
-        USLOSS_Console("start1: joined with child %d\n", ret1);
-
-	ret2 = join(&status);
-        USLOSS_Console("start1: joined with child %d\n", ret2);
-
-	ret3 = join(&status);
-        USLOSS_Console("start1: joined with child %d\n", ret3);
+    USLOSS_Console("start3(): started\n");
+    Spawn("Child1", Child1, "Child1", USLOSS_MIN_STACK, 4, &pid);
+    USLOSS_Console("start3(): spawned process %d\n", pid);
+    Wait(&pid, &status);
+    USLOSS_Console("start3(): child %d returned status of %d\n", pid, status);
+    USLOSS_Console("start3(): done\n");
+    Terminate(8);
+    return 0;
+} /* start3 */
 
 
-	USLOSS_Console("TEST:");
-        USLOSS_Console("exit getpid test.\n");
-
-	quit(-1);
-	return 0;
-}
-
-int XXp1(char *arg)
+int Child1(char *arg) 
 {
-	static int i = 0;
-	if (getpid()!= pidlist[i]){
-		USLOSS_Console("TEST:");
-		USLOSS_Console("Getpid failed. %d %d\n",getpid(),pidlist[i]);
-	}
-	else{
-		USLOSS_Console("TEST:");
-		USLOSS_Console("Getpid passed. %d %d\n",getpid(),pidlist[i]);
-	}
-	i++;
+    int pid, status;
 
-	quit(FLAG1);
-	return 0;
-}
+    USLOSS_Console("Child1() starting\n");
+    Spawn("Child2", Child2, "Child2", USLOSS_MIN_STACK, 5, &pid);
+    USLOSS_Console("Child1(): spawned process %d\n", pid);
+    Wait(&pid, &status);
+    USLOSS_Console("Child1(): child %d returned status of %d\n", pid, status);
+    Spawn("Child3", Child2, "Child3", USLOSS_MIN_STACK, 5, &pid);
+    USLOSS_Console("Child1(): spawned process %d\n", pid);
+    Wait(&pid, &status);
+    USLOSS_Console("Child1(): child %d returned status of %d\n", pid, status);
 
+    USLOSS_Console("Child1(): done\n");
+    Terminate(9);
+    return 0;
+} /* Child1 */
+
+
+int Child2(char *arg) 
+{
+
+    if (!(strcmp(arg,"Child2"))){
+        USLOSS_Console("Child2(): starting\n");
+        Terminate(9);
+    }
+    else {
+        if (!(strcmp(arg,"Child3"))){
+            USLOSS_Console("Child3(): starting\n");
+            Terminate(10);
+        }
+        else {
+            USLOSS_Console("wrong argument passed ... test failed\n");
+            exit(1);
+        }
+    }
+    return 0;
+} /* Child2 */

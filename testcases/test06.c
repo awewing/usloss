@@ -1,46 +1,63 @@
-/* A simple check for zap() and isZapped() */
 
-#include <stdio.h>
-#include <usloss.h>
+/*
+ * Two process semaphore test.
+ */
+
 #include <phase1.h>
+#include <phase2.h>
+#include <usloss.h>
+#include <usyscall.h>
+#include <libuser.h>
+#include <stdio.h>
 
-int XXp1(char *);
+int Child1(char *);
+int Child2(char *);
+
+int semaphore;
+
+int start3(char *arg)
+{
+   int pid, status;
+   int sem_result;
+
+   printf("start3(): started.  Creating semaphore.\n");
+   sem_result = SemCreate(0, &semaphore);
+   if (sem_result != 0) {
+      printf("start3(): got non-zero semaphore result. Terminating...\n");
+      Terminate(1);
+   }
+   printf("start3(): calling Spawn for Child1\n");
+   Spawn("Child1", Child1, NULL, USLOSS_MIN_STACK, 2, &pid);
+   printf("start3(): after spawn of %d\n", pid);
+   printf("start3(): calling Spawn for Child2\n");
+   Spawn("Child2", Child2, NULL, USLOSS_MIN_STACK, 2, &pid);
+   printf("start3(): after spawn of %d\n", pid);
+   Wait(&pid, &status);
+   Wait(&pid, &status);
+   printf("start3(): Parent done. Calling Terminate.\n");
+   Terminate(8);
+
+   return 0;
+} /* start3 */
 
 
-int
-start1( char *arg ) 
+int Child1(char *arg) 
 {
 
-    int status, kidpid, zap_result, join_result;
+   printf("Child1(): starting, P'ing semaphore\n");
+   SemP(semaphore);
+   printf("Child1(): done\n");
 
-    USLOSS_Console("START1: calling fork1 for XXp1\n");
-    kidpid = fork1("XXp1", XXp1, "XXp1", USLOSS_MIN_STACK, 5);
-
-    USLOSS_Console("START1: calling zap\n");
-    zap_result = zap(kidpid);
-    USLOSS_Console("START1: zap_result = %d\n", zap_result);
-
-    join_result = join(&status);
-    USLOSS_Console("START1: join returned %d, status %d\n",
-                   join_result, status);
-
-    quit(0);
-    return 0;
-
-} /* start1 */
+   return 9;
+} /* Child1 */
 
 
-int
-XXp1( char *arg )
+int Child2(char *arg) 
 {
 
-    USLOSS_Console("XXp1: started\n");
+   printf("Child2(): starting, V'ing semaphore\n");
+   SemV(semaphore);
+   printf("Child2(): done\n");
 
-    while ( isZapped() == 0 ) {
-    }
-
-    USLOSS_Console("XXp1: calling quit\n");
-    quit(5);
-    return 0;
-
-} /* XXp1 */
+   return 9;
+} /* Child1 */

@@ -1,44 +1,73 @@
-/*
- * Check if -1 is returned when there are no more process slots.
- * Attempt to start MAXPROC + 2 processes; i.e., 52 processes
- * Process table has 50 slots. start1 and sentinel occupy two of
- *    the slots.  Thus, 48 new processes will start, with error
- *    messages about the last 4 attempts.
- */
+/* Counting Semaphore test */
 
-#include <stdio.h>
 #include <usloss.h>
 #include <phase1.h>
+#include <phase2.h>
+#include <usyscall.h>
+#include <libuser.h>
+#include <stdio.h>
 
-int XXp1(char *), XXp2(char *), XXp3(char *), XXp4(char *);
+int Child1(char *);
+int Child2(char *);
 
-int start1(char *arg)
+int sem1;
+
+int start3(char *arg)
 {
-    int i, pid1;
+    int result;
+    int pid;
+    int status;
 
-    USLOSS_Console("TEST: start %d processes\n", MAXPROC);
+    USLOSS_Console("start3(): started\n");
+    result = SemCreate(3, &sem1);
+    SemP(sem1);
+    USLOSS_Console("start3(): After P in the CS\n");
+    Spawn("Child1", Child1, "Child1", USLOSS_MIN_STACK, 2, &pid);
+    USLOSS_Console("\nstart3(): spawn %d\n", pid);
+    Spawn("Child2", Child2, "Child2", USLOSS_MIN_STACK, 3, &pid);
+    USLOSS_Console("start3(): spawn %d\n", pid);
+    SemV(sem1);
+    USLOSS_Console("\nstart3(): After V -- may appear before: Child1(): After P attempt #3\n");
+    Wait(&pid, &status);
+    USLOSS_Console("\nstart3(): status of quit child = %d\n",status);
+    Wait(&pid, &status);
+    USLOSS_Console("start3(): status of quit child = %d\n",status);
+    USLOSS_Console("start3(): Parent done\n");
+    Terminate(8);
 
-    for (i=0;i<MAXPROC+2;i++) {
-        pid1 = fork1("XXp1", XXp1, "XXp1", USLOSS_MIN_STACK, 2);
+    return 0;
+} /* start3 */
 
-        if (pid1== -1) {
-            USLOSS_Console("TEST: i = %d, pid is -1.\n", i);
-        }
+
+int Child1(char *arg) 
+{
+    int i;
+
+    USLOSS_Console("\n%s(): starting\n", arg);
+    for (i = 0; i < 5; i++) {
+        SemP(sem1);
+        if (i == 3)
+            USLOSS_Console("%s(): After P attempt #3 -- may appear before: start3(): After V\n", arg);
+        else
+            USLOSS_Console("%s(): After P attempt #%d\n", arg, i);
     }
-
-    for (i=0;i<MAXPROC+2;i++) {
-        join(&pid1);
-    }  
-
-    quit(-1);
+    USLOSS_Console("%s(): done\n", arg);
+    Terminate(9);
 
     return 0;
-}
+} /* Child1 */
 
-int XXp1(char *arg)
+
+int Child2(char *arg) 
 {
- 
-    quit(-2);
+    int i;
 
+    USLOSS_Console("\n%s(): starting\n", arg);
+    for (i = 0; i < 5; i++) {
+        SemV(sem1);
+        USLOSS_Console("%s(): After V attempt #%d\n", arg, i);
+    }
+    USLOSS_Console("%s(): done\n", arg);
+    Terminate(10);
     return 0;
-}
+} /* Child2 */

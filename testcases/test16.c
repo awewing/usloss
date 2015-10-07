@@ -1,90 +1,70 @@
-/*
-This test checks to see if a process returns -1 if it is zapped
-while blocked on zap
- 
+/* Basic semaphore release test: */
 
-				     fork&zap
-	 _____ XXp1 (priority = 3) ----------- XXp3 (priority = 5)
-	/	     	| 
-start1                 	| zap
-	\____ XXp2 (priority = 4) 
-
-*/
-
-#include <stdio.h>
 #include <usloss.h>
 #include <phase1.h>
+#include <phase2.h>
+#include <usyscall.h>
+#include <libuser.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-int XXp1(char *), XXp2(char *), XXp3(char *);
-char buf[256];
-int pid_z, pid1;
+int Child1(char *);
 
-int start1(char *arg)
+int sem1;
+
+int start3(char *arg)
 {
-  int status, pid2, kid_pid;
+    int result;
+    int pid;
+    int status;
 
-  printf("start1(): started\n");
-  pid1 = fork1("XXp1", XXp1, "XXp1", USLOSS_MIN_STACK, 3);
-  printf("start1(): after fork of child %d\n", pid1);
-  pid2 = fork1("XXp2", XXp2, "XXp2", USLOSS_MIN_STACK, 4);
-  printf("start1(): after fork of child %d\n", pid2);
-  printf("start1(): performing join\n");
-  kid_pid = join(&status);
-  sprintf(buf,"start1(): exit status for child %d is %d\n", kid_pid, status); 
-  printf("%s", buf);
-  printf("start1(): performing join\n");
-  kid_pid = join(&status);
-  sprintf(buf,"start1(): exit status for child %d is %d\n", kid_pid, status); 
-  printf("%s", buf);
-  return 0;
-}
+    USLOSS_Console("start3(): started\n");
+    result = SemCreate(1, &sem1);
+    SemP(sem1);
+    USLOSS_Console("start3(): After P in the CS\n");
+    Spawn("Child1", Child1, "Child1", USLOSS_MIN_STACK, 2, &pid);
+    USLOSS_Console("start3(): fork %d\n", pid);
+    Spawn("Child2", Child1, "Child2", USLOSS_MIN_STACK, 2, &pid);
+    USLOSS_Console("start3(): fork %d\n", pid);
+    result = SemFree(sem1); 
+    if(result == 1)
+        USLOSS_Console("start3(): After SemFree with processes blocked\n");
+    else{
+        USLOSS_Console("start3(): test failed ... wrong value returned\n");
+        exit(1);
+    }
+    Wait(&pid, &status);
+    USLOSS_Console("start3(): status of quit child = %d\n",status);
+    Wait(&pid, &status);
+    USLOSS_Console("start3(): status of quit child = %d\n",status);
+    USLOSS_Console("start3(): Parent done\n");
+    Terminate(8);
 
-int XXp1(char *arg)
+    return 0;
+} /* start3 */
+
+
+int Child1(char *arg) 
 {
-  int status, kid_pid;
 
-  printf("XXp1(): started\n");
-  printf("XXp1(): arg = `%s'\n", arg);
-  printf("XXp1(): executing fork of first child\n");
-  pid_z = fork1("XXp3", XXp3, "XXp3", USLOSS_MIN_STACK, 5);
-  printf("XXp1(): fork1 of first child returned pid = %d\n", pid_z);
-  printf("XXp1(): zap'ing process with %d\n",pid_z);
-  status = zap(pid_z);
-  if(status == -1)
-  	printf("XXp1(): after zap'ing process with pid = %d, XXp1 was zapped while blocked on zap\n",pid_z); 
-  else
-  	printf("XXp1(): after zap'ing process with pid_z, status = %d\n", status);
+    if(!(strcmp(arg,"Child1")))
+        USLOSS_Console("Child1(): starting\n");
+    else{
+        if(!(strcmp(arg,"Child2")))
+            USLOSS_Console("Child2(): starting\n");
+        else{
+            USLOSS_Console("Child: wrong argument passed ... test failed\n");
+            exit(1);
+        }
+    }
+    SemP(sem1);
+    USLOSS_Console("%s(): After P in the CS\n", arg);
+    SemV(sem1);
+    USLOSS_Console("%s(): After V in the CS\n", arg);
+    USLOSS_Console("%s(): done\n", arg);
+    Terminate(9);
 
-  printf("XXp1(): joining with first child\n" );
-  kid_pid = join(&status);
-  if(kid_pid == -1)
-	printf("XXp1(): was zapped while it was blocked on join\n");
-  else
-  	printf("XXp1(): join returned kid_pid = %d, status = %d\n",kid_pid, status);
-  quit(-3);
-  return 0;
-}
-
-int XXp2(char *arg)
-{
-  int status;
-
-  printf("XXp2(): started\n");
-
-  printf("XXp2(): zap'ing process with pid = %d \n",pid1);
-  status = zap(pid1);
-  printf("XXp2(): after zap'ing process with pid = %d, status = %d\n",pid1, status);
-
-  quit(5);
-  return 0;
-}
-
-int XXp3(char *arg)
-{
-  printf("XXp3(): started\n");
-  dumpProcesses();
-  quit(5);
-  return 0;
-}
-
+    return 0;
+} /* Child1 */
 

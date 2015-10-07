@@ -1,80 +1,49 @@
 /*
-This test checks to see if a process puts processes blocked on join
-and blocked on zap back to the ready list:
+ * Three process test of GetPID.
+ */
 
-				       fork
-	 _____ XXp1 (priority = 3)  ----------- XXp3 (priority = 5)
-	/				      |
-start1  		             zap      |
-	\____ XXp2 (priority = 4) ------------- 
-
-*/
-
-#include <stdio.h>
-#include <usloss.h>
 #include <phase1.h>
+#include <phase2.h>
+#include <usloss.h>
+#include <usyscall.h>
+#include <libuser.h>
+#include <stdio.h>
 
-int XXp1(char *), XXp2(char *), XXp3(char *);
-char buf[256];
-int pid_e;
+int Child1(char *);
 
-int start1(char *arg)
+int semaphore;
+
+int start3(char *arg)
 {
-  int status, pid1, pid2, kid_pid;
+   int pid, status;
 
-  printf("start1(): started\n");
-  pid1 = fork1("XXp1", XXp1, "XXp1", USLOSS_MIN_STACK, 3);
-  printf("start1(): after fork of child %d\n", pid1);
-  pid2 = fork1("XXp2", XXp2, "XXp2", USLOSS_MIN_STACK, 4);
-  printf("start1(): after fork of child %d\n", pid2);
-  printf("start1(): performing join\n");
-  kid_pid = join(&status);
-  sprintf(buf,"start1(): exit status for child %d is %d\n", kid_pid, status); 
-  printf("%s", buf);
-  printf("start1(): performing join\n");
-  kid_pid = join(&status);
-  sprintf(buf,"start1(): exit status for child %d is %d\n", kid_pid, status); 
-  printf("%s", buf);
-  return 0;
-}
+   printf("start3(): started\n");
 
-int XXp1(char *arg)
+   printf("start3(): calling Spawn for Child1a\n");
+   Spawn("Child1a", Child1, "Child1a", USLOSS_MIN_STACK, 1, &pid);
+   printf("start3(): calling Spawn for Child1b\n");
+   Spawn("Child1b", Child1, "Child1b", USLOSS_MIN_STACK, 1, &pid);
+   printf("start3(): calling Spawn for Child1c\n");
+   Spawn("Child1c", Child1, "Child1c", USLOSS_MIN_STACK, 1, &pid);
+   printf("start3(): calling Spawn for Child2\n");
+   Wait(&pid, &status);
+   Wait(&pid, &status);
+   Wait(&pid, &status);
+   printf("start3(): Parent done. Calling Terminate.\n");
+   Terminate(8);
+
+   return 0;
+} /* start3 */
+
+
+int Child1(char *my_name) 
 {
-  int status, kid_pid;
+   int pid;
 
-  printf("XXp1(): started\n");
-  printf("XXp1(): arg = `%s'\n", arg);
-  printf("XXp1(): executing fork of first child\n");
-  pid_e = fork1("XXp3", XXp3, "XXp3", USLOSS_MIN_STACK, 5);
-  printf("XXp1(): fork1 of first child returned pid = %d\n", pid_e);
-  printf("XXp1(): joining with first child\n" );
-  kid_pid = join(&status);
-  printf("XXp1(): join returned kid_pid = %d, status = %d\n",
-          kid_pid, status);
-  quit(-3);
-  return 0;
-}
+   printf("%s(): starting\n", my_name);
+   GetPID(&pid);
+   printf("%s(): pid = %d\n", my_name, pid);
+   printf("%s(): done\n", my_name);
 
-int XXp2(char *arg)
-{
-  int status;
-
-  printf("XXp2(): started\n");
-
-  printf("XXp2(): zap'ing child with pid_e \n");
-  status = zap(pid_e);
-  printf("XXp2(): after zap'ing child with pid_e, status = %d\n", status);
-
-  quit(5);
-  return 0;
-}
-
-int XXp3(char *arg)
-{
-  printf("XXp3(): started\n");
-  dumpProcesses();
-  quit(5);
-  return 0;
-}
-
-
+   return 9;
+} /* Child1 */

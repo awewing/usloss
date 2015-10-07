@@ -1,83 +1,51 @@
 /*
-This test checks to see if a process returns -1 in join if it was 
-zapped while waiting:
-
-				       fork
-	 _____ XXp1 (priority = 3)  ----------- XXp3 (priority = 5)
-	/	          |
-start1                    | zap
-	\____ XXp2 (priority = 4) 
-
+  Check that spawn and it's return parameters work. 
+  Also check if start3 is in user mode.
 */
 
-
-#include <stdio.h>
 #include <usloss.h>
 #include <phase1.h>
+#include <phase2.h>
+#include <usyscall.h>
+#include <libuser.h>
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-int XXp1(char *), XXp2(char *), XXp3(char *);
-char buf[256];
-int pid_z;
-
-int start1(char *arg)
+int Child1(char *arg) 
 {
-  int status, pid2, kid_pid;
-
-  printf("start1(): started\n");
-  pid_z = fork1("XXp1", XXp1, "XXp1", USLOSS_MIN_STACK, 3);
-  printf("start1(): after fork of child %d\n", pid_z);
-  pid2 = fork1("XXp2", XXp2, "XXp2", USLOSS_MIN_STACK, 4);
-  printf("start1(): after fork of child %d\n", pid2);
-  printf("start1(): performing join\n");
-  kid_pid = join(&status);
-  sprintf(buf,"start1(): exit status for child %d is %d\n", kid_pid, status); 
-  printf("%s", buf);
-  printf("start1(): performing join\n");
-  kid_pid = join(&status);
-  sprintf(buf,"start1(): exit status for child %d is %d\n", kid_pid, status); 
-  printf("%s", buf);
-  return 0;
+    if(USLOSS_PsrGet() & USLOSS_PSR_CURRENT_MODE){
+        USLOSS_Console("Child1(): not in user mode\n");
+        exit(1);
+    }
+    USLOSS_Console("Child1(): starting\n");
+    Terminate(32);
+    return 0;
 }
 
-int XXp1(char *arg)
-{
-  int status, kid_pid;
 
-  printf("XXp1(): started\n");
-  printf("XXp1(): arg = `%s'\n", arg);
-  printf("XXp1(): executing fork of first child\n");
-  kid_pid = fork1("XXp3", XXp3, "XXp3", USLOSS_MIN_STACK, 5);
-  printf("XXp1(): fork1 of first child returned pid = %d\n", kid_pid);
-  printf("XXp1(): joining with first child\n" );
-  kid_pid = join(&status);
-  if(kid_pid == -1)
-	printf("XXp1(): was zapped while it was blocked on join\n");
-  else
-  	printf("XXp1(): join returned kid_pid = %d, status = %d\n",kid_pid, status);
-  quit(-3);
-  return 0;
+int start3(char *arg)
+{
+    int pid,id;
+
+    USLOSS_Console("start3(): started\n");
+    if(USLOSS_PsrGet() & USLOSS_PSR_CURRENT_MODE){
+        USLOSS_Console("start3 not in user mode\n");
+        exit(1);
+    }
+    Spawn("Child1", Child1, NULL, USLOSS_MIN_STACK, 4, &pid);
+    USLOSS_Console("start3(): fork %d\n", pid);
+    Wait(&pid, &id);
+    assert(id == 32);
+    USLOSS_Console("start3(): Done.\n");
+    Terminate(0);
+
+    return 0;
 }
 
-int XXp2(char *arg)
-{
-  int status;
 
-  printf("XXp2(): started\n");
 
-  printf("XXp2(): zap'ing process with pid_z \n");
-  status = zap(pid_z);
-  printf("XXp2(): after zap'ing process with pid_z, status = %d\n", status);
 
-  quit(5);
-  return 0;
-}
 
-int XXp3(char *arg)
-{
-  printf("XXp3(): started\n");
-  dumpProcesses();
-  quit(5);
-  return 0;
-}
 
 

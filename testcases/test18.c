@@ -1,66 +1,76 @@
-/*
-  check_zapped_by_manyprocs
-  NOTE: The output for this is non-deterministic.
+/* recursive terminate test */
 
-//Check if all process which have issued a zap on a process are woken
-//when the target process finally quits.
-  
-*/
-
-#include <stdio.h>
-#include <stdlib.h>
 #include <usloss.h>
 #include <phase1.h>
+#include <phase2.h>
+#include <usyscall.h>
+#include <libuser.h>
+#include <stdio.h>
 
-int XXp1(char *), XXp2(char *), XXp3(char *), XXp4(char *);
-char buf[256];
+int Child1(char *);
+int Child2(char *);
+int Child3(char *);
 
-#define N 10
+int sem1;
 
-int victim;
-
-int start1(char *arg)
+int start3(char *arg)
 {
-  int i,status, pid2;
-  char buf[25];
+    int pid;
+    int status;
 
-  printf("start1(): started\n");
-  victim = fork1("XXp3", XXp3,"XXp3",USLOSS_MIN_STACK,5);
-  for(i=0;i<N;i++) {
-    sprintf(buf, "%d", i);
-    pid2 = fork1("XXp2", XXp2, buf, USLOSS_MIN_STACK, 4);
-  }
-  join(&status);
-  for(i=0;i<N;i++) {
-    join(&status);
-  }
-  printf("start1(): calling quit\n");
-  quit(-1);
-  return 0;
-} /* start1 */
+    USLOSS_Console("start3(): started\n");
+    Spawn("Child1", Child1, "Child1", USLOSS_MIN_STACK, 4, &pid);
+    USLOSS_Console("start3(): spawned process %d\n", pid);
+    Wait(&pid, &status);
+    USLOSS_Console("start3(): child %d returned status of %d\n", pid, status);
+    USLOSS_Console("start3(): done\n");
+    Terminate(8);
+    return 0;
+} /* start3 */
 
-int count=0;
 
-int XXp2(char *arg)
+int Child1(char *arg) 
 {
-  int i = atoi(arg);
-  count++;
-  printf("XXp2(): %d zapping XXp3\n", i);
-  zap(victim);
-  printf("XXp2(): %d after zap\n", i);
-  quit(-3);
+    int pid;
+    int status;
 
-  return 0;
-}
+    GetPID(&pid);
+    USLOSS_Console("%s(): starting, pid = %d\n", arg, pid);
+    Spawn("Child2", Child2, "Child2", USLOSS_MIN_STACK, 2, &pid);
+    USLOSS_Console("%s(): spawned process %d\n", arg, pid);
+    Wait(&pid, &status);
+    USLOSS_Console("%s(): child %d returned status of %d\n", arg, pid, status);
+    Spawn("Child3", Child3, "Child3", USLOSS_MIN_STACK, 5, &pid);
+    USLOSS_Console("%s(): spawned process %d\n", arg, pid);
+    Wait(&pid, &status);
+    USLOSS_Console("%s(): child %d returned status of %d\n", arg, pid, status);
+    USLOSS_Console("%s(): done\n", arg);
+    Terminate(9);
 
-int XXp3(char *arg)
+    return 0;
+} /* Child1 */
+
+int Child2(char *arg) 
 {
-  printf("XXp3(): started\n");
-  while(count<N) {
-  }
-  printf("XXp3(): count=%d\n",count);
-  quit(-4);
+    int pid;
 
-  return 0;
-}
+    GetPID(&pid);
+    USLOSS_Console("%s(): starting, pid = %d\n", arg, pid);
+    Spawn("Child2a", Child3, "Child2a", USLOSS_MIN_STACK, 5, &pid);
+    USLOSS_Console("%s(): spawned process %d\n", arg, pid);
+    Spawn("Child2b", Child3, "Child2b", USLOSS_MIN_STACK, 5, &pid);
+    USLOSS_Console("%s(): spawned process %d\n", arg, pid);
+    Spawn("Child2c", Child3, "Child2c", USLOSS_MIN_STACK, 5, &pid);
+    USLOSS_Console("%s(): spawned process %d\n", arg, pid);
+    Terminate(10);
 
+    return 0;
+} /* Child2 */
+
+int Child3(char *arg) 
+{
+    USLOSS_Console("%s(): starting\n", arg);
+    Terminate(11);
+
+    return 0;
+} /* Child3 */

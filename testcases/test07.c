@@ -1,43 +1,67 @@
-#include <stdio.h>
-#include <usloss.h>
+/*
+ * Three process semaphore test: three processes block on semaphore, and
+ * then are released with three V's.
+ */
+
 #include <phase1.h>
+#include <phase2.h>
+#include <usloss.h>
+#include <usyscall.h>
+#include <libuser.h>
+#include <stdio.h>
 
-int XXp1(char *), XXp2(char *);
-char buf[256];
+int Child1(char *);
+int Child2(char *);
 
-int start1(char *arg)
+int semaphore;
+
+int start3(char *arg)
 {
-  int status, pid1, kidpid;
+   int pid;
+   int sem_result;
 
-  printf("start1(): started\n");
-  pid1 = fork1("XXp1", XXp1, "XXp1", USLOSS_MIN_STACK, 3);
-  printf("start1(): after fork of child %d\n", pid1);
-  kidpid = join(&status);
-  sprintf(buf,"start1(): exit status for child %d is %d\n", kidpid, status); 
-  printf("%s", buf);
-  return 0;
-}
+   printf("start3(): started.  Creating semaphore.\n");
+   sem_result = SemCreate(0, &semaphore);
+   if (sem_result != 0) {
+      printf("start3(): got non-zero semaphore result. Terminating...\n");
+      Terminate(1);
+   }
+   printf("start3(): calling Spawn for Child1\n");
+   Spawn("Child1a", Child1, "Child1a", USLOSS_MIN_STACK, 2, &pid);
+   Spawn("Child1b", Child1, "Child1b", USLOSS_MIN_STACK, 2, &pid);
+   Spawn("Child1c", Child1, "Child1c", USLOSS_MIN_STACK, 2, &pid);
+   printf("start3(): after spawn of %d\n", pid);
+   printf("start3(): calling Spawn for Child2\n");
+   Spawn("Child2", Child2, NULL, USLOSS_MIN_STACK, 2, &pid);
+   printf("start3(): after spawn of %d\n", pid);
+   printf("start3(): Parent done. Calling Terminate.\n");
+   Terminate(8);
 
-int XXp1(char *arg)
+   return 0;
+} /* start3 */
+
+
+int Child1(char *arg) 
 {
-  int pid1, kidpid, status;
 
-  printf("XXp1(): started\n");
-  printf("XXp1(): arg = `%s'\n", arg);
-  pid1 = fork1("XXp2", XXp2, "XXp2", USLOSS_MIN_STACK, 2);
-  printf("XXp1(): after fork of child %d\n", pid1);
-  kidpid = join(&status);
-  sprintf(buf,"XXp1(): exit status for child %d is %d\n", kidpid, status); 
-  printf("%s", buf);
-  quit(-3);
-  return 0;
-}
+   printf("%s(): starting, P'ing semaphore\n", arg);
+   SemP(semaphore);
+   printf("%s(): done\n", arg);
 
-int XXp2(char *arg)
+   return 9;
+} /* Child1 */
+
+
+int Child2(char *arg) 
 {
-  printf("XXp2(): started\n");
-  printf("XXp2(): arg = `%s'\n", arg);
-  quit(5);
-  return 0;
-}
+   int pid;
 
+   GetPID(&pid);
+   printf("Child2(): %d starting, V'ing semaphore\n", pid );
+   SemV(semaphore);
+   SemV(semaphore);
+   SemV(semaphore);
+   printf("Child2(): done\n");
+
+   return 9;
+} /* Child1 */

@@ -1,10 +1,15 @@
-start1(): started
-start1(): after fork of child 3
-XXp1(): started
-XXp1(): arg = `XXp1'
-XXp2(): started
-XXp2(): arg = `XXp2'
-XXp1(): after fork of child 4
-XXp1(): exit status for child 4 is 5
-start1(): exit status for child 3 is -3
+start3(): started.  Creating semaphore.
+start3(): calling Spawn for Child1
+Child1a(): starting, P'ing semaphore
+Child1b(): starting, P'ing semaphore
+Child1c(): starting, P'ing semaphore
+start3(): after spawn of 7
+start3(): calling Spawn for Child2
+Child2(): 8 starting, V'ing semaphore
+Child2(): done
+Child1a(): done
+Child1b(): done
+Child1c(): done
+start3(): after spawn of 8
+start3(): Parent done. Calling Terminate.
 All processes completed.

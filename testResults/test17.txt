@@ -1,8 +1,13 @@
-TEST:Getpid passed. 3 3
-start1: joined with child 3
-TEST:Getpid passed. 4 4
-start1: joined with child 4
-TEST:Getpid passed. 5 5
-start1: joined with child 5
-TEST:exit getpid test.
+start3(): started
+start3(): spawned process 5
+Child1() starting
+Child1(): spawned process 6
+Child2(): starting
+Child1(): child 6 returned status of 9
+Child1(): spawned process 7
+Child3(): starting
+Child1(): child 7 returned status of 10
+Child1(): done
+start3(): child 5 returned status of 9
+start3(): done
 All processes completed.

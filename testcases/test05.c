@@ -1,54 +1,29 @@
-#include <stdio.h>
-#include <usloss.h>
+
+/*
+ * Max Sem Create test.
+ */
+
 #include <phase1.h>
-#include <strings.h>
+#include <phase2.h>
+#include <phase3.h>
+#include <usloss.h>
+#include <usyscall.h>
+#include <libuser.h>
+#include <stdio.h>
 
-int XXp1(char *);
-char buf[256];
-
-
-int start1(char *arg)
+int start3(char *arg)
 {
-   int status, kidpid, i, j;
-   char buf[20];
-
-   printf("start1(): started\n");
-
-   for (j = 0; j < 2; j++) {
-      for (i = 2; i < 5; i++) {
-         sprintf(buf, "XXp%d", i);
-         printf("start1(): buf = `%s'\n", buf);
-         kidpid = fork1("XXp1", XXp1, buf, USLOSS_MIN_STACK, 3);
-         printf("start1(): after fork of child %d\n", kidpid);
-      }
-
-      for (i = 2; i < 5; i++) {
-         kidpid = join (&status);
-         printf("start1(): after join of child %d, status = %d\n",
-                kidpid, status);
-      }
-
-   }
-   return 0;
-}
-
-int XXp1(char *arg)
-{
+   int semaphore;
+   int sem_result;
    int i;
 
-   printf("XXp1(): %s, started, pid = %d\n", arg, getpid());
-   if ( strcmp(arg, "XXp3") == 0 ) {
-      for (i = 0; i < 10000000; i++)
-         if ( i == 7500000)
-            dumpProcesses();
+   printf("start3(): started.  Calling SemCreate\n");
+   for (i = 0; i < MAXSEMS + 2; i++) {
+      sem_result = SemCreate(0, &semaphore);
+      printf("i = %3d, sem_result = %2d\n", i, sem_result);
    }
-   else {
-      for (i = 0; i < 10000000; i++)
-         ;
-   }
+   Terminate(8);
 
-   printf("XXp1(): exitting, pid = %d\n", getpid());
-   quit(-getpid());
    return 0;
-}
+} /* start3 */
 

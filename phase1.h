@@ -48,6 +48,7 @@ extern int   blockMe(int block_status);
 extern int   unblockProc(int pid);
 extern int   readCurStartTime(void);
 extern void  timeSlice(void);
+extern void  dispatcher(void);
 extern int   readtime(void);
 
 extern void  p1_fork(int pid);

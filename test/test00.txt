@@ -1,0 +1,4 @@
+start1(): at beginning
+start1(): fork'ing start2 process
+start2(): started
+All processes completed.

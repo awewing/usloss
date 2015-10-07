@@ -1,39 +1,26 @@
-#include <stdio.h>
-#include <usloss.h>
+/*
+ * Simple Sem Create test.
+ */
+
 #include <phase1.h>
+#include <phase2.h>
+#include <usloss.h>
+#include <usyscall.h>
+#include <libuser.h>
+#include <stdio.h>
 
-int XXp1(char *);
-char buf[256];
-
-
-int start1(char *arg)
+int start3(char *arg)
 {
-   int status, kidpid, i, j;
+    int semaphore;
+    int sem_result;
 
-   printf("start1(): started\n");
+   printf("start3(): started.  Calling SemCreate\n");
+   sem_result = SemCreate(0, &semaphore);
+   printf("start3(): sem_result = %d, semaphore = %d\n", sem_result, semaphore);
+   sem_result = SemCreate(0, &semaphore);
+   printf("start3(): sem_result = %d, semaphore = %d\n", sem_result, semaphore);
+   Terminate(8);
 
-   for (j = 0; j < 2; j++) {
-      for (i = 2; i < MAXPROC; i++) {
-         kidpid = fork1("XXp1", XXp1, "XXp1", USLOSS_MIN_STACK, 3);
-         printf("start1(): after fork of child %d\n", kidpid);
-      }
-
-      dumpProcesses();
-
-      for (i = 2; i < MAXPROC; i++) {
-         kidpid = join (&status);
-         printf("start1(): after join of child %d, status = %d\n",
-         kidpid, status);
-      }
-
-   }
    return 0;
-}
-
-int XXp1(char *arg)
-{
-   printf("XXp1(): started, pid = %d\n", getpid());
-   quit(-getpid());
-   return 0;
-}
+} /* start3 */
 

@@ -1,35 +1,63 @@
-/* start1 creates XXp1.
- * start1 then quit's before XXp1 has a chance to run
- * USLOSS should complain about start1 quitting while having
- *    active children.
+/*
+ * Three process test of freeing a semaphore.
  */
-#include <stdio.h>
-#include <usloss.h>
+
 #include <phase1.h>
+#include <phase2.h>
+#include <usloss.h>
+#include <usyscall.h>
+#include <libuser.h>
+#include <stdio.h>
 
-int XXp1(char *);
-char buf[256];
+int Child1(char *);
+int Child2(char *);
 
-int start1(char *arg)
+int semaphore;
+
+int start3(char *arg)
 {
-  int pid1;
+   int pid;
+   int sem_result;
 
-  printf("start1(): started\n");
+   printf("start3(): started.  Creating semaphore.\n");
+   sem_result = SemCreate(0, &semaphore);
+   if (sem_result != 0) {
+      printf("start3(): got non-zero semaphore result. Terminating...\n");
+      Terminate(1);
+   }
+   printf("start3(): calling Spawn for Child1a\n");
+   Spawn("Child1a", Child1, "Child1a", USLOSS_MIN_STACK, 1, &pid);
+   printf("start3(): calling Spawn for Child1b\n");
+   Spawn("Child1b", Child1, "Child1b", USLOSS_MIN_STACK, 1, &pid);
+   printf("start3(): calling Spawn for Child1c\n");
+   Spawn("Child1c", Child1, "Child1c", USLOSS_MIN_STACK, 1, &pid);
+   printf("start3(): calling Spawn for Child2\n");
+   Spawn("Child2", Child2, NULL, USLOSS_MIN_STACK, 2, &pid);
+   printf("start3(): after spawn of Child2\n");
+   printf("start3(): Parent done. Calling Terminate.\n");
+   Terminate(8);
 
-  pid1 = fork1("XXp1", XXp1, "XXp1", USLOSS_MIN_STACK, 3);
-  printf("start1(): after fork of child %d\n", pid1);
-  quit(0);
-  return 0; /* so gcc will not complain about its absence... */
-}
+   return 0;
+} /* start3 */
 
-int XXp1(char *arg)
+
+int Child1(char *arg) 
 {
-  int i;
 
-  printf("XXp1(): started\n");
-  printf("XXp1(): arg = `%s'\n", arg);
-  for(i = 0; i < 100; i++)
-    ;
-  quit(-3);
-  return 0;
-}
+   printf("%s(): starting, P'ing semaphore\n", arg);
+   SemP(semaphore);
+   printf("%s(): done\n", arg);
+
+   return 9;
+} /* Child1 */
+
+
+int Child2(char *arg) 
+{
+
+   printf("Child2(): starting, free'ing semaphore\n");
+   SemFree(semaphore);
+   printf("Child2(): done\n");
+
+   return 9;
+} /* Child1 */
